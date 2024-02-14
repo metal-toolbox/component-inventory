@@ -1,0 +1,11 @@
+---
+image:
+  repo: localhost:5001
+  tag: latest
+
+app:
+  name: component-inventory
+  serviceName: inventory-api
+  configPath: /etc/cis
+  livenessURI: /_health/liveness
+  containerPort: 7500

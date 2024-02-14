@@ -1,0 +1,55 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    k8s-service: {{ .Values.app.serviceName }}
+  name: {{ .Values.app.name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      k8s-service: {{ .Values.app.serviceName }}
+  template:
+    metadata:
+      labels:
+        k8s-service: {{ .Values.app.serviceName }}
+    spec:
+      containers:
+        - image: "{{ .Values.image.repo }}/{{ .Values.app.name }}:{{ .Values.image.tag }}"
+          name: {{ .Values.app.name }}
+          args:
+            - server
+            - "--config={{ .Values.app.configPath }}/config.yaml"
+          ports:
+            - name: api-port
+              containerPort: {{ .Values.app.containerPort }}
+          volumeMounts:
+            - name: config-volume
+              mountPath: {{ .Values.app.configPath }}
+          env:
+          securityContext:
+            capabilities:
+              drop:
+                - NET_RAW
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+          resources:
+            limits:
+              cpu: 100m
+              memory: 100M
+            requests:
+              cpu: 100m
+              memory: 100M
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.app.livenessURI }}
+              port: api-port
+            initialDelaySeconds: 30
+            periodSeconds: 30
+      volumes:
+        - name: config-volume
+          configMap:
+            name: {{ .Values.app.name}}-config
+      restartPolicy: Always

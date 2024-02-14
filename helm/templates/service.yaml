@@ -1,0 +1,14 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    k8s-service: {{ .Values.app.serviceName }}
+  name: {{ .Values.app.name }}
+spec:
+  ports:
+    - protocol: {{ .Values.app.protocol | default "TCP" }}
+      port: {{ .Values.app.containerPort }}
+      targetPort: {{ .Values.app.containerPort }}
+  selector:
+    k8s-service: {{ .Values.app.serviceName }}
