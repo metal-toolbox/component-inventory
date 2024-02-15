@@ -13,7 +13,8 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-const AppName = "component-inventory"
+// XXX: be careful here. Compound names need to be valid prometheus metric names (used in internal/metrics.go)
+const AppName = "component_inventory"
 
 type App struct {
 	Log  *zap.Logger
