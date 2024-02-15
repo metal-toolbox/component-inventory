@@ -18,6 +18,9 @@ var (
 	readTimeout  = 10 * time.Second
 	writeTimeout = 20 * time.Second
 
+	livenessEndpoint = "/_health/liveness"
+	versionEndpoint  = "/api/version"
+
 	authMiddleWare *ginauth.MultiTokenMiddleware
 	ginNoOp        = func(_ *gin.Context) {}
 )
@@ -25,7 +28,11 @@ var (
 // apiHandler is a function that performs real work for this API.
 type apiHandler func(map[string]any) (map[string]any, error)
 
-func composeAppLogging(l *zap.Logger) gin.HandlerFunc {
+func composeAppLogging(l *zap.Logger, skippedPaths ...string) gin.HandlerFunc {
+	skipMap := map[string]struct{}{}
+	for _, path := range skippedPaths {
+		skipMap[path] = struct{}{}
+	}
 	return func(c *gin.Context) {
 		start := time.Now()
 		// some evil middlewares modify this values
@@ -34,6 +41,11 @@ func composeAppLogging(l *zap.Logger) gin.HandlerFunc {
 		c.Next() // call the next function in the chain
 		code := c.Writer.Status()
 		metrics.APICallEpilog(start, path, code)
+
+		// only log if we're not skipping this path
+		if _, ok := skipMap[path]; ok {
+			return
+		}
 
 		fields := []zap.Field{
 			zap.String("path", path),
@@ -74,7 +86,7 @@ func ComposeHTTPServer(theApp *app.App) *http.Server {
 	}
 
 	// set up common middleware for logging and metrics
-	g.Use(composeAppLogging(theApp.Log), gin.Recovery())
+	g.Use(composeAppLogging(theApp.Log, livenessEndpoint), gin.Recovery())
 
 	// some boilerplate setup
 	g.NoRoute(func(c *gin.Context) {
@@ -86,11 +98,11 @@ func ComposeHTTPServer(theApp *app.App) *http.Server {
 	})
 
 	// a liveness endpoint
-	g.GET("/_health/liveness", func(c *gin.Context) {
+	g.GET(livenessEndpoint, func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"time": time.Now()})
 	})
 
-	g.GET("/api/version", func(c *gin.Context) {
+	g.GET(versionEndpoint, func(c *gin.Context) {
 		c.JSON(http.StatusOK, version.Current())
 	})
 
