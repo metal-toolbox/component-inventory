@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/bmc-toolbox/common"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/metal-toolbox/component-inventory/internal/app"
@@ -20,9 +21,11 @@ var (
 	readTimeout  = 10 * time.Second
 	writeTimeout = 20 * time.Second
 
-	livenessEndpoint   = "/_health/liveness"
-	versionEndpoint    = "/api/version"
-	componentsEndpoint = "/components/:server"
+	livenessEndpoint           = "/_health/liveness"
+	versionEndpoint            = "/api/version"
+	componentsEndpoint         = "/components/:server"
+	inbandInventoryEndpoint    = "/inventory/in-band/:server"
+	outofbandInventoryEndpoint = "/inventory/out-of-band/:server"
 
 	authMiddleWare *ginauth.MultiTokenMiddleware
 	ginNoOp        = func(_ *gin.Context) {}
@@ -144,6 +147,17 @@ func ComposeHTTPServer(theApp *app.App) *http.Server {
 			ctx.JSON(http.StatusOK, comps)
 		})
 
+	// add an API to ingest inventory data
+	g.POST(inbandInventoryEndpoint,
+		composeAuthHandler(updateScopes("server:component")),
+		composeInventoryHandler(theApp, processInband),
+	)
+
+	g.POST(outofbandInventoryEndpoint,
+		composeAuthHandler(updateScopes("server:component")),
+		composeInventoryHandler(theApp, processOutofband),
+	)
+
 	return &http.Server{
 		Addr:         theApp.Cfg.ListenAddress,
 		Handler:      g,
@@ -179,6 +193,43 @@ func wrapAPICall(fn apiHandler) gin.HandlerFunc {
 			}
 		}
 		ctx.JSON(responseCode, obj)
+	}
+}
+
+type inventoryHandler func(*fleetdb.Client, uuid.UUID, *common.Device, *zap.Logger) error
+
+func reject(ctx *gin.Context, code int, msg, err string) {
+	ctx.JSON(code, map[string]any{
+		"message": msg,
+		"err":     err,
+	})
+}
+
+func composeInventoryHandler(theApp *app.App, fn inventoryHandler) gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		serverID, err := uuid.Parse(ctx.Param("server"))
+		if err != nil {
+			reject(ctx, http.StatusBadRequest, "invalid server id", err.Error())
+			return
+		}
+
+		var dev common.Device
+		if err := c.BindJSON(&dev); err != nil {
+			reject(ctx, http.StatusBadRequest, "invalid server inventory", err.Error())
+			return
+		}
+
+		if err := fn(
+			getFleetDBClient(theApp.Cfg),
+			serverID,
+			&dev,
+			theApp.Log,
+		); err != nil {
+			reject(ctx, http.StatusInternalServerError, "unable to process inventory", err.Error())
+			return
+		}
+
+		ctx.Status(http.StatusCreated)
 	}
 }
 
