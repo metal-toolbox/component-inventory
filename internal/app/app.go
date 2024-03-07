@@ -64,6 +64,16 @@ func (a *App) ContextDone() bool {
 	return a.ctx.Err() != nil
 }
 
+// LogRunningConfig does exactly what it says on the tin. It is only a side-effect.
+func (a *App) LogRunningConfig() {
+	a.Log.Info("running configuration",
+		zap.String("fleetdb.address", a.Cfg.FleetDBAddress),
+		zap.String("listen.address", a.Cfg.ListenAddress),
+		zap.Bool("developer.mode", a.Cfg.DeveloperMode),
+		// do something for the JWTAuthConfig
+	)
+}
+
 // LoadConfiguration opens and parses the configuration file and then applies any
 // environmental overrides
 func LoadConfiguration(cfgFile string) (*Configuration, error) {
@@ -93,6 +103,14 @@ func LoadConfiguration(cfgFile string) (*Configuration, error) {
 		return nil, errors.Wrap(err, "configuring environment orverrides")
 	}
 
+	if cfg.ListenAddress == "" {
+		return nil, errors.New("listen address not set")
+	}
+
+	if cfg.FleetDBAddress == "" {
+		return nil, errors.New("fleetdb endpoint not set")
+	}
+
 	return cfg, nil
 }
 
@@ -104,7 +122,10 @@ func envVarOverrides(v *viper.Viper, cfg *Configuration) error {
 	if v.GetBool("developer.mode") {
 		cfg.DeveloperMode = true
 	}
-	// secrets would go here
+
+	if dbToken := v.GetString("fleetdb.access.token"); dbToken != "" {
+		cfg.FleetDBToken = dbToken
+	}
 
 	// sanity checks
 	if cfg.ListenAddress == "" {

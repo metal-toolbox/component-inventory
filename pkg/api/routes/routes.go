@@ -6,9 +6,11 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/metal-toolbox/component-inventory/internal/app"
 	"github.com/metal-toolbox/component-inventory/internal/metrics"
 	"github.com/metal-toolbox/component-inventory/internal/version"
+	fleetdb "github.com/metal-toolbox/fleetdb/pkg/api/v1"
 	"go.hollow.sh/toolbox/ginauth"
 	"go.hollow.sh/toolbox/ginjwt"
 	"go.uber.org/zap"
@@ -18,8 +20,9 @@ var (
 	readTimeout  = 10 * time.Second
 	writeTimeout = 20 * time.Second
 
-	livenessEndpoint = "/_health/liveness"
-	versionEndpoint  = "/api/version"
+	livenessEndpoint   = "/_health/liveness"
+	versionEndpoint    = "/api/version"
+	componentsEndpoint = "/components/:server"
 
 	authMiddleWare *ginauth.MultiTokenMiddleware
 	ginNoOp        = func(_ *gin.Context) {}
@@ -116,6 +119,31 @@ func ComposeHTTPServer(theApp *app.App) *http.Server {
 
 	// add other API endpoints to the gin Engine as required
 
+	// get the components associated with a server
+	g.GET(componentsEndpoint,
+		composeAuthHandler(readScopes("server:component")),
+		func(ctx *gin.Context) {
+			serverID, err := uuid.Parse(ctx.Param("server"))
+			if err != nil {
+				ctx.JSON(http.StatusBadRequest, map[string]any{
+					"message": "invalid server id",
+					"err":     err.Error(),
+				})
+				return
+			}
+
+			client := getFleetDBClient(theApp.Cfg)
+			comps, err := fetchServerComponents(client, serverID, theApp.Log)
+			if err != nil {
+				ctx.JSON(http.StatusInternalServerError, map[string]any{
+					"message": "components unavailable",
+					"error":   err.Error(),
+				})
+				return
+			}
+			ctx.JSON(http.StatusOK, comps)
+		})
+
 	return &http.Server{
 		Addr:         theApp.Cfg.ListenAddress,
 		Handler:      g,
@@ -138,6 +166,7 @@ func wrapAPICall(fn apiHandler) gin.HandlerFunc {
 			ctx.JSON(http.StatusBadRequest, map[string]any{
 				"error": err.Error(),
 			})
+			return
 		}
 
 		obj, err := fn(m)
@@ -151,6 +180,14 @@ func wrapAPICall(fn apiHandler) gin.HandlerFunc {
 		}
 		ctx.JSON(responseCode, obj)
 	}
+}
+
+func getFleetDBClient(cfg *app.Configuration) *fleetdb.Client {
+	client, _ := fleetdb.NewClient(cfg.FleetDBAddress, nil)
+	if cfg.FleetDBToken != "" {
+		client.SetToken(cfg.FleetDBToken)
+	}
+	return client
 }
 
 func composeAuthHandler(scopes []string) gin.HandlerFunc {
