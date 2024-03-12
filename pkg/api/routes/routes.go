@@ -214,7 +214,7 @@ func composeInventoryHandler(theApp *app.App, fn inventoryHandler) gin.HandlerFu
 		}
 
 		var dev common.Device
-		if err := c.BindJSON(&dev); err != nil {
+		if err := ctx.BindJSON(&dev); err != nil {
 			reject(ctx, http.StatusBadRequest, "invalid server inventory", err.Error())
 			return
 		}
