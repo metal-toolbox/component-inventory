@@ -52,6 +52,11 @@ load-sandbox:
 	@cp helm/configmap.yaml "${SANDBOX_TEMPLATE_DIR}/cis-configmap.yaml"
 	@echo "Be sure to do a helm (re)load to get the service started"
 
+## generate mock client
+gen-client-mock:
+	go install go.uber.org/mock/mockgen@latest
+	mockgen -package=client -source=pkg/api/client/client.go -destination=pkg/api/client/mock/mockclient.go
+
 # https://gist.github.com/prwhite/8168133
 # COLORS
 GREEN  := $(shell tput -Txterm setaf 2)

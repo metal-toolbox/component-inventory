@@ -27,7 +27,7 @@ func fetchServerComponents(client *fleetdb.Client, srvid uuid.UUID, l *zap.Logge
 
 	comps := make(map[string][]*rivets.Component)
 
-	for _, c := range fleetDBcomps {
+	for _, c := range fleetDBcomps { //nolint
 		c := c
 		cPtr, err := rdb.RecordToComponent(&c)
 		if err != nil {

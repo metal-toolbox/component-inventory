@@ -7,14 +7,8 @@ import (
 	"net/http"
 
 	"github.com/bmc-toolbox/common"
+	"github.com/metal-toolbox/component-inventory/pkg/api/routes"
 	rivets "github.com/metal-toolbox/rivets/types"
-)
-
-const (
-	versionEndpoint            = "/api/version"
-	componentsEndpoint         = "/components"
-	inbandInventoryEndpoint    = "/inventory/in-band"
-	outofbandInventoryEndpoint = "/inventory/out-of-band"
 )
 
 type ServerComponents map[string][]*rivets.Component
@@ -57,7 +51,7 @@ func NewClient(serverAddress string, opts ...Option) (Client, error) {
 }
 
 func (c componentInventoryClient) GetServerComponents(ctx context.Context, serverID string) (ServerComponents, error) {
-	path := fmt.Sprintf("%v/%v", componentsEndpoint, serverID)
+	path := fmt.Sprintf("%v/%v", routes.ComponentsEndpoint, serverID)
 	resp, err := c.get(ctx, path)
 	if err != nil {
 		return nil, err
@@ -72,7 +66,7 @@ func (c componentInventoryClient) GetServerComponents(ctx context.Context, serve
 }
 
 func (c componentInventoryClient) Version(ctx context.Context) (string, error) {
-	resp, err := c.get(ctx, versionEndpoint)
+	resp, err := c.get(ctx, routes.VersionEndpoint)
 	if err != nil {
 		return "", err
 	}
@@ -81,7 +75,7 @@ func (c componentInventoryClient) Version(ctx context.Context) (string, error) {
 }
 
 func (c componentInventoryClient) UpdateInbandInventory(ctx context.Context, serverID string, device *common.Device) (string, error) {
-	path := fmt.Sprintf("%v/%v", inbandInventoryEndpoint, serverID)
+	path := fmt.Sprintf("%v/%v", routes.InbandInventoryEndpoint, serverID)
 	body, err := json.Marshal(device)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse device: %v", err)
@@ -96,7 +90,7 @@ func (c componentInventoryClient) UpdateInbandInventory(ctx context.Context, ser
 }
 
 func (c componentInventoryClient) UpdateOutOfbandInventory(ctx context.Context, serverID string, device *common.Device) (string, error) {
-	path := fmt.Sprintf("%v/%v", outofbandInventoryEndpoint, serverID)
+	path := fmt.Sprintf("%v/%v", routes.OutofbandInventoryEndpoint, serverID)
 	body, err := json.Marshal(device)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse device: %v", err)

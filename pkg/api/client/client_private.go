@@ -7,6 +7,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+
+	"github.com/pkg/errors"
 )
 
 // Doer performs HTTP requests.
@@ -39,12 +41,12 @@ func WithAuthToken(authToken string) Option {
 func (c *componentInventoryClient) get(ctx context.Context, path string) ([]byte, error) {
 	requestURL, err := url.Parse(fmt.Sprintf("%s%s", c.serverAddress, path))
 	if err != nil {
-		return nil, Error{Cause: err.Error()}
+		return nil, errors.Wrap(err, "parsing URL")
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL.String(), http.NoBody)
 	if err != nil {
-		return nil, Error{Cause: "error in GET request" + err.Error()}
+		return nil, fmt.Errorf("error in GET request: %v", err)
 	}
 
 	return c.do(req)
@@ -53,12 +55,12 @@ func (c *componentInventoryClient) get(ctx context.Context, path string) ([]byte
 func (c *componentInventoryClient) post(ctx context.Context, path string, body []byte) ([]byte, error) {
 	requestURL, err := url.Parse(fmt.Sprintf("%s%s", c.serverAddress, path))
 	if err != nil {
-		return nil, Error{Cause: err.Error()}
+		return nil, fmt.Errorf("failed to parse URL path %v: %v", path, err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, requestURL.String(), bytes.NewReader(body))
 	if err != nil {
-		return nil, Error{Cause: "error in POST request" + err.Error()}
+		return nil, fmt.Errorf("error in POST request: %v", err)
 	}
 
 	return c.do(req)
@@ -73,24 +75,21 @@ func (c *componentInventoryClient) do(req *http.Request) ([]byte, error) {
 
 	response, err := c.client.Do(req)
 	if err != nil {
-		return nil, RequestError{err.Error(), response.StatusCode}
+		return nil, fmt.Errorf("failed to send request: %v, code: %v", err, response.StatusCode)
 	}
 
 	if response == nil {
-		return nil, RequestError{"got empty response body", 0}
+		return nil, fmt.Errorf("got empty response body. code: 0")
 	}
 
 	if response.StatusCode >= http.StatusMultiStatus {
-		return nil, RequestError{"got bad request", response.StatusCode}
+		return nil, fmt.Errorf("got bad request. code: %v", response.StatusCode)
 	}
 	defer response.Body.Close()
 
 	data, err := io.ReadAll(response.Body)
 	if err != nil {
-		return nil, RequestError{
-			"failed to read response body: " + err.Error(),
-			response.StatusCode,
-		}
+		return nil, fmt.Errorf("failed to read response body: %v, code: %v", err.Error(), response.StatusCode)
 	}
 
 	return data, nil
