@@ -21,12 +21,6 @@ var (
 	readTimeout  = 10 * time.Second
 	writeTimeout = 20 * time.Second
 
-	livenessEndpoint           = "/_health/liveness"
-	versionEndpoint            = "/api/version"
-	componentsEndpoint         = "/components/:server"
-	inbandInventoryEndpoint    = "/inventory/in-band/:server"
-	outofbandInventoryEndpoint = "/inventory/out-of-band/:server"
-
 	authMiddleWare *ginauth.MultiTokenMiddleware
 	ginNoOp        = func(_ *gin.Context) {}
 )
@@ -92,7 +86,7 @@ func ComposeHTTPServer(theApp *app.App) *http.Server {
 	}
 
 	// set up common middleware for logging and metrics
-	g.Use(composeAppLogging(theApp.Log, livenessEndpoint), gin.Recovery())
+	g.Use(composeAppLogging(theApp.Log, LivenessEndpoint), gin.Recovery())
 
 	// some boilerplate setup
 	g.NoRoute(func(c *gin.Context) {
@@ -104,11 +98,11 @@ func ComposeHTTPServer(theApp *app.App) *http.Server {
 	})
 
 	// a liveness endpoint
-	g.GET(livenessEndpoint, func(c *gin.Context) {
+	g.GET(LivenessEndpoint, func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"time": time.Now()})
 	})
 
-	g.GET(versionEndpoint, func(c *gin.Context) {
+	g.GET(VersionEndpoint, func(c *gin.Context) {
 		c.JSON(http.StatusOK, version.Current())
 	})
 
@@ -123,7 +117,7 @@ func ComposeHTTPServer(theApp *app.App) *http.Server {
 	// add other API endpoints to the gin Engine as required
 
 	// get the components associated with a server
-	g.GET(componentsEndpoint,
+	g.GET(ComponentsEndpoint+"/:server",
 		composeAuthHandler(readScopes("server:component")),
 		func(ctx *gin.Context) {
 			serverID, err := uuid.Parse(ctx.Param("server"))
@@ -148,12 +142,12 @@ func ComposeHTTPServer(theApp *app.App) *http.Server {
 		})
 
 	// add an API to ingest inventory data
-	g.POST(inbandInventoryEndpoint,
+	g.POST(InbandInventoryEndpoint+"/:server",
 		composeAuthHandler(updateScopes("server:component")),
 		composeInventoryHandler(theApp, processInband),
 	)
 
-	g.POST(outofbandInventoryEndpoint,
+	g.POST(OutofbandInventoryEndpoint+"/:server",
 		composeAuthHandler(updateScopes("server:component")),
 		composeInventoryHandler(theApp, processOutofband),
 	)
@@ -214,7 +208,7 @@ func composeInventoryHandler(theApp *app.App, fn inventoryHandler) gin.HandlerFu
 		}
 
 		var dev common.Device
-		if err := c.BindJSON(&dev); err != nil {
+		if err := ctx.BindJSON(&dev); err != nil {
 			reject(ctx, http.StatusBadRequest, "invalid server inventory", err.Error())
 			return
 		}
