@@ -6,8 +6,9 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/metal-toolbox/component-inventory/pkg/api/constants"
+
 	"github.com/bmc-toolbox/common"
-	"github.com/metal-toolbox/component-inventory/pkg/api/routes"
 	rivets "github.com/metal-toolbox/rivets/types"
 )
 
@@ -51,7 +52,7 @@ func NewClient(serverAddress string, opts ...Option) (Client, error) {
 }
 
 func (c componentInventoryClient) GetServerComponents(ctx context.Context, serverID string) (ServerComponents, error) {
-	path := fmt.Sprintf("%v/%v", routes.ComponentsEndpoint, serverID)
+	path := fmt.Sprintf("%v/%v", constants.ComponentsEndpoint, serverID)
 	resp, err := c.get(ctx, path)
 	if err != nil {
 		return nil, err
@@ -66,7 +67,7 @@ func (c componentInventoryClient) GetServerComponents(ctx context.Context, serve
 }
 
 func (c componentInventoryClient) Version(ctx context.Context) (string, error) {
-	resp, err := c.get(ctx, routes.VersionEndpoint)
+	resp, err := c.get(ctx, constants.VersionEndpoint)
 	if err != nil {
 		return "", err
 	}
@@ -75,7 +76,7 @@ func (c componentInventoryClient) Version(ctx context.Context) (string, error) {
 }
 
 func (c componentInventoryClient) UpdateInbandInventory(ctx context.Context, serverID string, device *common.Device) (string, error) {
-	path := fmt.Sprintf("%v/%v", routes.InbandInventoryEndpoint, serverID)
+	path := fmt.Sprintf("%v/%v", constants.InbandInventoryEndpoint, serverID)
 	body, err := json.Marshal(device)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse device: %v", err)
@@ -90,7 +91,7 @@ func (c componentInventoryClient) UpdateInbandInventory(ctx context.Context, ser
 }
 
 func (c componentInventoryClient) UpdateOutOfbandInventory(ctx context.Context, serverID string, device *common.Device) (string, error) {
-	path := fmt.Sprintf("%v/%v", routes.OutofbandInventoryEndpoint, serverID)
+	path := fmt.Sprintf("%v/%v", constants.OutofbandInventoryEndpoint, serverID)
 	body, err := json.Marshal(device)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse device: %v", err)
