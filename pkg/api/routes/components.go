@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	internalfleetdb "github.com/metal-toolbox/component-inventory/internal/fleetdb"
 	fleetdb "github.com/metal-toolbox/fleetdb/pkg/api/v1"
 	rdb "github.com/metal-toolbox/rivets/fleetdb"
 	rivets "github.com/metal-toolbox/rivets/types"
@@ -16,7 +17,7 @@ var fleetDBTimeout = 3 * time.Minute
 // this is a map of "component_type_name" to the actual inventory data for each component
 type serverComponents map[string][]*rivets.Component
 
-func fetchServerComponents(client *fleetdb.Client, srvid uuid.UUID, l *zap.Logger) (serverComponents, error) {
+func fetchServerComponents(client internalfleetdb.Client, srvid uuid.UUID, l *zap.Logger) (serverComponents, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), fleetDBTimeout)
 	defer cancel()
 

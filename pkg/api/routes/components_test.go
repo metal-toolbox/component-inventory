@@ -2,6 +2,7 @@ package routes
 
 import (
 	"github.com/metal-toolbox/component-inventory/internal/app"
+	internalfleetdb "github.com/metal-toolbox/component-inventory/internal/fleetdb"
 
 	"encoding/json"
 	"fmt"
@@ -90,9 +91,10 @@ func TestFetchServerComponents(t *testing.T) {
 
 		logger := app.GetLogger(true)
 
-		client := getFleetDBClient(&app.Configuration{
+		client, err := internalfleetdb.NewFleetDBClient(&app.Configuration{
 			FleetDBAddress: ts.URL,
 		})
+		require.NoError(t, err)
 
 		result, err := fetchServerComponents(client, serverUUID, logger)
 		require.NoError(t, err)
@@ -118,11 +120,12 @@ func TestFetchServerComponents(t *testing.T) {
 
 		logger := app.GetLogger(true)
 
-		client := getFleetDBClient(&app.Configuration{
+		client, err := internalfleetdb.NewFleetDBClient(&app.Configuration{
 			FleetDBAddress: ts.URL,
 		})
+		require.NoError(t, err)
 
-		_, err := fetchServerComponents(client, serverUUID, logger)
+		_, err = fetchServerComponents(client, serverUUID, logger)
 		require.Error(t, err)
 		var srvErr fleetdb.ServerError
 		require.ErrorAs(t, err, &srvErr, "unexpected error type")
