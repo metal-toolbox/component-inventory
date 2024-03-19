@@ -3,7 +3,6 @@ package internalfleetdb
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/metal-toolbox/component-inventory/internal/app"
@@ -17,7 +16,8 @@ type Client interface {
 	GetServer(context.Context, uuid.UUID) (*fleetdb.Server, *fleetdb.ServerResponse, error)
 	GetComponents(context.Context, uuid.UUID, *fleetdb.PaginationParams) (fleetdb.ServerComponentSlice, *fleetdb.ServerResponse, error)
 	UpdateAttributes(context.Context, *fleetdb.Server, *types.ComponentInventoryDevice, *zap.Logger) error
-	UpdateServerBIOSConfig() error
+	UpdateServerBIOSConfig(context.Context, *fleetdb.Server, *types.ComponentInventoryDevice, *zap.Logger) error
+	UpdateServerMetadataAttributes(context.Context, uuid.UUID, *types.ComponentInventoryDevice, *zap.Logger) error
 }
 
 // Creates a new Client, with reasonable defaults
@@ -37,7 +37,8 @@ func NewFleetDBClient(cfg *app.Configuration) (Client, error) {
 }
 
 type fleetDBClient struct {
-	client *fleetdb.Client
+	client  *fleetdb.Client
+	appKind types.AppKind
 }
 
 func (fc fleetDBClient) GetServer(ctx context.Context, id uuid.UUID) (*fleetdb.Server, *fleetdb.ServerResponse, error) {
@@ -78,13 +79,12 @@ func createUpdateServerAttributes(ctx context.Context, c *fleetdb.Client, server
 		return err
 	}
 
-	updatedVendorData := existingVendorData
 	var changes bool
 	for key := range newVendorData {
-		if updatedVendorData[key] == "" || updatedVendorData[key] == "unknown" {
+		if existingVendorData[key] == "" || existingVendorData[key] == "unknown" {
 			if newVendorData[key] != "unknown" {
 				changes = true
-				updatedVendorData[key] = newVendorData[key]
+				existingVendorData[key] = newVendorData[key]
 			}
 		}
 	}
@@ -93,8 +93,8 @@ func createUpdateServerAttributes(ctx context.Context, c *fleetdb.Client, server
 		return nil
 	}
 
-	if len(updatedVendorData) > 0 {
-		updateBytes, err := json.Marshal(updatedVendorData)
+	if len(existingVendorData) > 0 {
+		updateBytes, err := json.Marshal(existingVendorData)
 		if err != nil {
 			return err
 		}
@@ -107,10 +107,56 @@ func createUpdateServerAttributes(ctx context.Context, c *fleetdb.Client, server
 	return nil
 }
 
-func (fc fleetDBClient) UpdateServerBIOSConfig() error {
-	return createUpdateServerBIOSConfig()
+func (fc fleetDBClient) UpdateServerBIOSConfig(ctx context.Context, server *fleetdb.Server, dev *types.ComponentInventoryDevice, log *zap.Logger) error {
+	// Nothing to publish
+	if len(*dev.BiosCfg) == 0 {
+		log.Info("no bios configuration collected")
+		return nil
+	}
+
+	// marshal metadata from device
+	bc, err := json.Marshal(dev.BiosCfg)
+	if err != nil {
+		log.Error("invalid biosConfig")
+		return err
+	}
+
+	va := fleetdb.VersionedAttributes{
+		Namespace: serverBIOSConfigNS(fc.appKind),
+		Data:      bc,
+	}
+
+	_, err = fc.client.CreateVersionedAttributes(ctx, server.UUID, va)
+
+	return err
 }
 
-func createUpdateServerBIOSConfig() error {
-	return fmt.Errorf("unimplemented")
+func (fc fleetDBClient) UpdateServerMetadataAttributes(ctx context.Context, serverID uuid.UUID, dev *types.ComponentInventoryDevice, log *zap.Logger) error {
+	// no metadata reported in inventory from device
+	if dev.Inv == nil || len(dev.Inv.Metadata) == 0 {
+		// XXX: should delete the metadata on the server-service record!
+		return nil
+	}
+
+	// marshal metadata from device
+	metadata := mustFilterAssetMetadata(dev.Inv.Metadata)
+
+	attribute := fleetdb.Attributes{
+		Namespace: constants.ServerMetadataAttributeNS,
+		Data:      metadata,
+	}
+
+	// XXX: This would be much easier if serverservice/fleetdb supported upsert
+	// current asset metadata has no attributes set and no metadata attribute, create one
+	if _, ok := dev.Inv.Metadata[ssMetadataAttributeFound]; !ok {
+		_, err := fc.client.CreateAttributes(ctx, serverID, attribute)
+		log.Info("creating server attributes")
+		return err
+	}
+
+	// update vendor, model attributes
+	_, err := fc.client.UpdateAttributes(ctx, serverID, constants.ServerMetadataAttributeNS, metadata)
+
+	return err
+
 }

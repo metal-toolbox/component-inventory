@@ -12,9 +12,21 @@ import (
 
 func processInband(ctx context.Context, c internalfleetdb.Client, server *fleetdb.Server, dev *types.ComponentInventoryDevice, log *zap.Logger) error { //nolint
 	log.Info("processing", zap.String("server", server.Name), zap.String("device", dev.Inv.Serial))
+	// update bisconfig
+	if err := c.UpdateServerBIOSConfig(ctx, server, dev, log); err != nil {
+		return err
+	}
+
+	// create/update server serial, vendor, model attributes
 	if err := c.UpdateAttributes(ctx, server, dev, log); err != nil {
 		return err
 	}
+
+	// create update server metadata attributes
+	if err := c.UpdateServerMetadataAttributes(ctx, server.UUID, dev, log); err != nil {
+		return err
+	}
+
 	return errors.New("not implemented")
 }
 
