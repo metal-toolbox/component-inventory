@@ -8,7 +8,7 @@ import (
 
 	"github.com/metal-toolbox/component-inventory/pkg/api/constants"
 
-	"github.com/bmc-toolbox/common"
+	"github.com/metal-toolbox/alloy/types"
 	rivets "github.com/metal-toolbox/rivets/types"
 )
 
@@ -18,8 +18,8 @@ type ServerComponents map[string][]*rivets.Component
 type Client interface {
 	Version(context.Context) (string, error)
 	GetServerComponents(context.Context, string) (ServerComponents, error)
-	UpdateInbandInventory(context.Context, string, *common.Device) (string, error)
-	UpdateOutOfbandInventory(context.Context, string, *common.Device) (string, error)
+	UpdateInbandInventory(context.Context, string, *types.InventoryDevice) (string, error)
+	UpdateOutOfbandInventory(context.Context, string, *types.InventoryDevice) (string, error)
 }
 
 type componentInventoryClient struct {
@@ -75,7 +75,7 @@ func (c componentInventoryClient) Version(ctx context.Context) (string, error) {
 	return string(resp), nil
 }
 
-func (c componentInventoryClient) UpdateInbandInventory(ctx context.Context, serverID string, device *common.Device) (string, error) {
+func (c componentInventoryClient) UpdateInbandInventory(ctx context.Context, serverID string, device *types.InventoryDevice) (string, error) {
 	path := fmt.Sprintf("%v/%v", constants.InbandInventoryEndpoint, serverID)
 	body, err := json.Marshal(device)
 	if err != nil {
@@ -90,7 +90,7 @@ func (c componentInventoryClient) UpdateInbandInventory(ctx context.Context, ser
 	return string(resp), nil
 }
 
-func (c componentInventoryClient) UpdateOutOfbandInventory(ctx context.Context, serverID string, device *common.Device) (string, error) {
+func (c componentInventoryClient) UpdateOutOfbandInventory(ctx context.Context, serverID string, device *types.InventoryDevice) (string, error) {
 	path := fmt.Sprintf("%v/%v", constants.OutofbandInventoryEndpoint, serverID)
 	body, err := json.Marshal(device)
 	if err != nil {

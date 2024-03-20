@@ -8,12 +8,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/metal-toolbox/alloy/types"
 	"github.com/metal-toolbox/component-inventory/internal/app"
 	internalfleetdb "github.com/metal-toolbox/component-inventory/internal/fleetdb"
 	"github.com/metal-toolbox/component-inventory/internal/metrics"
 	"github.com/metal-toolbox/component-inventory/internal/version"
 	"github.com/metal-toolbox/component-inventory/pkg/api/constants"
-	"github.com/metal-toolbox/component-inventory/pkg/api/types"
 	fleetdb "github.com/metal-toolbox/fleetdb/pkg/api/v1"
 	"go.hollow.sh/toolbox/ginauth"
 	"go.hollow.sh/toolbox/ginjwt"
@@ -201,7 +201,7 @@ func wrapAPICall(fn apiHandler) gin.HandlerFunc {
 	}
 }
 
-type inventoryHandler func(context.Context, internalfleetdb.Client, *fleetdb.Server, *types.ComponentInventoryDevice, *zap.Logger) error
+type inventoryHandler func(context.Context, internalfleetdb.Client, *fleetdb.Server, *types.InventoryDevice, *zap.Logger) error
 
 func reject(ctx *gin.Context, code int, msg, err string) {
 	ctx.JSON(code, map[string]any{
@@ -218,7 +218,7 @@ func composeInventoryHandler(theApp *app.App, fn inventoryHandler) gin.HandlerFu
 			return
 		}
 
-		var dev types.ComponentInventoryDevice
+		var dev types.InventoryDevice
 		if err = ctx.BindJSON(&dev); err != nil {
 			reject(ctx, http.StatusBadRequest, "invalid server inventory", err.Error())
 			return
