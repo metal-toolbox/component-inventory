@@ -6,9 +6,9 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/metal-toolbox/alloy/types"
 	"github.com/metal-toolbox/component-inventory/internal/app"
 	"github.com/metal-toolbox/component-inventory/pkg/api/constants"
-	"github.com/metal-toolbox/component-inventory/pkg/api/types"
 	fleetdb "github.com/metal-toolbox/fleetdb/pkg/api/v1"
 	"go.uber.org/zap"
 )
@@ -16,7 +16,7 @@ import (
 type Client interface {
 	GetServer(context.Context, uuid.UUID) (*fleetdb.Server, *fleetdb.ServerResponse, error)
 	GetComponents(context.Context, uuid.UUID, *fleetdb.PaginationParams) (fleetdb.ServerComponentSlice, *fleetdb.ServerResponse, error)
-	UpdateAttributes(context.Context, *fleetdb.Server, *types.ComponentInventoryDevice, *zap.Logger) error
+	UpdateAttributes(context.Context, *fleetdb.Server, *types.InventoryDevice, *zap.Logger) error
 	UpdateServerBIOSConfig() error
 }
 
@@ -48,12 +48,12 @@ func (fc fleetDBClient) GetComponents(ctx context.Context, id uuid.UUID, params 
 	return fc.client.GetComponents(ctx, id, params)
 }
 
-func (fc fleetDBClient) UpdateAttributes(ctx context.Context, server *fleetdb.Server, dev *types.ComponentInventoryDevice, log *zap.Logger) error {
+func (fc fleetDBClient) UpdateAttributes(ctx context.Context, server *fleetdb.Server, dev *types.InventoryDevice, log *zap.Logger) error {
 	return createUpdateServerAttributes(ctx, fc.client, server, dev, log)
 }
 
 // Functions below may be refactored in the near future.
-func createUpdateServerAttributes(ctx context.Context, c *fleetdb.Client, server *fleetdb.Server, dev *types.ComponentInventoryDevice, log *zap.Logger) error {
+func createUpdateServerAttributes(ctx context.Context, c *fleetdb.Client, server *fleetdb.Server, dev *types.InventoryDevice, log *zap.Logger) error {
 	newVendorData, newVendorAttrs, err := deviceVendorAttributes(dev)
 	if err != nil {
 		return err

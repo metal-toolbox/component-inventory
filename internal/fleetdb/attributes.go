@@ -3,12 +3,12 @@ package internalfleetdb
 import (
 	"encoding/json"
 
+	"github.com/metal-toolbox/alloy/types"
 	"github.com/metal-toolbox/component-inventory/pkg/api/constants"
-	"github.com/metal-toolbox/component-inventory/pkg/api/types"
 	fleetdb "github.com/metal-toolbox/fleetdb/pkg/api/v1"
 )
 
-func deviceVendorAttributes(cid *types.ComponentInventoryDevice) (map[string]string, *fleetdb.Attributes, error) {
+func deviceVendorAttributes(cid *types.InventoryDevice) (map[string]string, *fleetdb.Attributes, error) {
 	deviceVendorData := map[string]string{
 		constants.ServerSerialAttributeKey: "unknown",
 		constants.ServerVendorAttributeKey: "unknown",
