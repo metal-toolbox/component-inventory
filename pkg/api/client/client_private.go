@@ -74,12 +74,12 @@ func (c *componentInventoryClient) do(req *http.Request) ([]byte, error) {
 	}
 
 	response, err := c.client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to send request: %v, code: %v", err, response.StatusCode)
+	if response == nil {
+		return nil, fmt.Errorf("got empty response body. code: 0, err: %v", err)
 	}
 
-	if response == nil {
-		return nil, fmt.Errorf("got empty response body. code: 0")
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request: %v, code: %v", err, response.StatusCode)
 	}
 
 	if response.StatusCode >= http.StatusMultiStatus {
