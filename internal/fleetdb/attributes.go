@@ -8,6 +8,11 @@ import (
 	fleetdb "github.com/metal-toolbox/fleetdb/pkg/api/v1"
 )
 
+const (
+	uefiVariablesKey         = "uefi-variables"
+	ssMetadataAttributeFound = "__ss_found"
+)
+
 func deviceVendorAttributes(cid *types.InventoryDevice) (map[string]string, *fleetdb.Attributes, error) {
 	deviceVendorData := map[string]string{
 		constants.ServerSerialAttributeKey: "unknown",
@@ -49,4 +54,27 @@ func attributeByNamespace(ns string, attributes []fleetdb.Attributes) *fleetdb.A
 	}
 
 	return nil
+}
+
+// mustFilterInventoryDeviceMetadata processes the asset inventory metadata to filter out fields we'll turn into versioned attributes (e.g. UEFIVariables)
+func mustFilterInventoryDeviceMetadata(inventory map[string]string) json.RawMessage {
+	excludedKeys := map[string]struct{}{
+		uefiVariablesKey: {},
+	}
+
+	filtered := make(map[string]string)
+
+	for k, v := range inventory {
+		if _, ok := excludedKeys[k]; ok {
+			continue
+		}
+		filtered[k] = v
+	}
+
+	byt, err := json.Marshal(filtered)
+	if err != nil {
+		panic("serializing metadata string map")
+	}
+
+	return byt
 }

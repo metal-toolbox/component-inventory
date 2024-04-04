@@ -12,7 +12,10 @@ import (
 
 func processInband(ctx context.Context, c internalfleetdb.Client, server *fleetdb.Server, dev *types.InventoryDevice, log *zap.Logger) error { //nolint
 	log.Info("processing", zap.String("server", server.Name), zap.String("device", dev.Inv.Serial))
-	if err := c.UpdateAttributes(ctx, server, dev, log); err != nil {
+	if err := c.UpdateInventory(ctx, server, dev, log); err != nil {
+		return err
+	}
+	if err := c.UpdateBIOSConfigration(ctx, server, dev, log); err != nil {
 		return err
 	}
 	return errors.New("not implemented")
@@ -20,5 +23,11 @@ func processInband(ctx context.Context, c internalfleetdb.Client, server *fleetd
 
 func processOutofband(ctx context.Context, c internalfleetdb.Client, server *fleetdb.Server, dev *types.InventoryDevice, log *zap.Logger) error { //nolint
 	log.Info("processing", zap.String("server", server.Name), zap.String("device", dev.Inv.Serial))
+	if err := c.UpdateInventory(ctx, server, dev, log); err != nil {
+		return err
+	}
+	if err := c.UpdateBIOSConfigration(ctx, server, dev, log); err != nil {
+		return err
+	}
 	return errors.New("not implemented")
 }
