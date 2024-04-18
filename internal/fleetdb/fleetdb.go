@@ -2,13 +2,11 @@ package internalfleetdb
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/metal-toolbox/alloy/types"
 	"github.com/metal-toolbox/component-inventory/internal/app"
-	"github.com/metal-toolbox/component-inventory/pkg/api/constants"
 	fleetdb "github.com/metal-toolbox/fleetdb/pkg/api/v1"
 	"go.uber.org/zap"
 )
@@ -53,57 +51,64 @@ func (fc fleetDBClient) UpdateAttributes(ctx context.Context, server *fleetdb.Se
 }
 
 // Functions below may be refactored in the near future.
+// func createUpdateServerAttributes(ctx context.Context, c *fleetdb.Client, server *fleetdb.Server, dev *types.InventoryDevice, log *zap.Logger) error {
+// 	newVendorData, newVendorAttrs, err := deviceVendorAttributes(dev)
+// 	if err != nil {
+// 		return err
+// 	}
+
+// 	// identify current vendor data in the inventory
+// 	existingVendorAttrs := attributeByNamespace(constants.ServerVendorAttributeNS, server.Attributes)
+// 	if existingVendorAttrs == nil {
+// 		// create if none exists
+// 		_, err = c.CreateAttributes(ctx, server.UUID, *newVendorAttrs)
+// 		return err
+// 	}
+
+// 	// unpack vendor data from inventory
+// 	existingVendorData := map[string]string{}
+// 	if err := json.Unmarshal(existingVendorAttrs.Data, &existingVendorData); err != nil {
+// 		// update vendor data since it seems to be invalid
+// 		log.Warn("server vendor attributes data invalid, updating..")
+
+// 		_, err = c.UpdateAttributes(ctx, server.UUID, constants.ServerVendorAttributeNS, newVendorAttrs.Data)
+
+// 		return err
+// 	}
+
+// 	updatedVendorData := existingVendorData
+// 	var changes bool
+// 	for key := range newVendorData {
+// 		if updatedVendorData[key] == "" || updatedVendorData[key] == "unknown" {
+// 			if newVendorData[key] != "unknown" {
+// 				changes = true
+// 				updatedVendorData[key] = newVendorData[key]
+// 			}
+// 		}
+// 	}
+
+// 	if !changes {
+// 		return nil
+// 	}
+
+// 	if len(updatedVendorData) > 0 {
+// 		updateBytes, err := json.Marshal(updatedVendorData)
+// 		if err != nil {
+// 			return err
+// 		}
+
+// 		_, err = c.UpdateAttributes(ctx, server.UUID, constants.ServerVendorAttributeNS, updateBytes)
+
+// 		return err
+// 	}
+
+// 	return nil
+// }
+
+// Functions below may be refactored in the near future.
 func createUpdateServerAttributes(ctx context.Context, c *fleetdb.Client, server *fleetdb.Server, dev *types.InventoryDevice, log *zap.Logger) error {
-	newVendorData, newVendorAttrs, err := deviceVendorAttributes(dev)
-	if err != nil {
-		return err
-	}
-
-	// identify current vendor data in the inventory
-	existingVendorAttrs := attributeByNamespace(constants.ServerVendorAttributeNS, server.Attributes)
-	if existingVendorAttrs == nil {
-		// create if none exists
-		_, err = c.CreateAttributes(ctx, server.UUID, *newVendorAttrs)
-		return err
-	}
-
-	// unpack vendor data from inventory
-	existingVendorData := map[string]string{}
-	if err := json.Unmarshal(existingVendorAttrs.Data, &existingVendorData); err != nil {
-		// update vendor data since it seems to be invalid
-		log.Warn("server vendor attributes data invalid, updating..")
-
-		_, err = c.UpdateAttributes(ctx, server.UUID, constants.ServerVendorAttributeNS, newVendorAttrs.Data)
-
-		return err
-	}
-
-	updatedVendorData := existingVendorData
-	var changes bool
-	for key := range newVendorData {
-		if updatedVendorData[key] == "" || updatedVendorData[key] == "unknown" {
-			if newVendorData[key] != "unknown" {
-				changes = true
-				updatedVendorData[key] = newVendorData[key]
-			}
-		}
-	}
-
-	if !changes {
-		return nil
-	}
-
-	if len(updatedVendorData) > 0 {
-		updateBytes, err := json.Marshal(updatedVendorData)
-		if err != nil {
-			return err
-		}
-
-		_, err = c.UpdateAttributes(ctx, server.UUID, constants.ServerVendorAttributeNS, updateBytes)
-
-		return err
-	}
-
+	uid, _ := uuid.Parse("ff9a76a6-ada0-4cbc-b1bc-337e7c7fc0d4")
+	c.GetInventory(ctx, uid, "inband")
 	return nil
 }
 
