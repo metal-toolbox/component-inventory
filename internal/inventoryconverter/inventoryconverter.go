@@ -182,8 +182,8 @@ func (ic *InventoryConverter) getComponentSlice(device *common.Device) ([]*rivet
 	}
 
 	// drives
-	if devDrivers := device.Drives; len(devDrivers) > 0 {
-		for idx, dd := range devDrivers {
+	if devDrives := device.Drives; len(devDrives) > 0 {
+		for idx, dd := range devDrives {
 			if strings.TrimSpace(dd.Serial) == "" {
 				dd.Serial = strconv.Itoa(idx)
 			}
