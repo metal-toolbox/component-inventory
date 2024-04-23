@@ -132,7 +132,7 @@ func ComposeHTTPServer(theApp *app.App) *http.Server {
 				return
 			}
 
-			client, err := internalfleetdb.NewFleetDBClient(theApp.Cfg)
+			client, err := internalfleetdb.NewFleetDBClient(ctx, theApp.Cfg)
 			if err != nil {
 				ctx.JSON(http.StatusInternalServerError, map[string]any{
 					"message": "failed to connect to fleetdb",
@@ -224,7 +224,7 @@ func composeInventoryHandler(theApp *app.App, fn inventoryHandler) gin.HandlerFu
 			return
 		}
 
-		fleetDBClient, err := internalfleetdb.NewFleetDBClient(theApp.Cfg)
+		fleetDBClient, err := internalfleetdb.NewFleetDBClient(ctx, theApp.Cfg)
 		if err != nil {
 			ctx.JSON(http.StatusInternalServerError, map[string]any{
 				"message": "failed to connect to fleetdb",
@@ -236,6 +236,7 @@ func composeInventoryHandler(theApp *app.App, fn inventoryHandler) gin.HandlerFu
 		server, _, err := fleetDBClient.GetServer(ctx, serverID)
 		if err != nil {
 			reject(ctx, http.StatusBadRequest, "server not exisit", err.Error())
+			return
 		}
 
 		if err := fn(

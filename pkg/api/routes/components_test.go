@@ -1,20 +1,19 @@
 package routes
 
 import (
-	"github.com/metal-toolbox/component-inventory/internal/app"
-	internalfleetdb "github.com/metal-toolbox/component-inventory/internal/fleetdb"
-
+	"context"
 	"encoding/json"
 	"fmt"
-
-	"github.com/google/uuid"
-	fleetdb "github.com/metal-toolbox/fleetdb/pkg/api/v1"
-
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/metal-toolbox/component-inventory/internal/app"
 	"github.com/stretchr/testify/require"
+
+	internalfleetdb "github.com/metal-toolbox/component-inventory/internal/fleetdb"
+	fleetdb "github.com/metal-toolbox/fleetdb/pkg/api/v1"
 )
 
 var serverUUID = uuid.New()
@@ -43,6 +42,19 @@ var validComponents = fleetdb.ServerComponentSlice{
 	},
 }
 
+var validComponentTypes = fleetdb.ServerComponentTypeSlice{
+	&fleetdb.ServerComponentType{
+		ID:   "02dc2503-b64c-439b-9f25-8e130705f14a",
+		Name: "Backplane-Expander",
+		Slug: "backplane-expander",
+	},
+	&fleetdb.ServerComponentType{
+		ID:   "1e0c3417-d63c-4fd5-88f7-4c525c70da12",
+		Name: "Mainboard",
+		Slug: "mainboard",
+	},
+}
+
 func getComponentsHandler(t *testing.T, comps *fleetdb.ServerComponentSlice, code int) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		var byt []byte
@@ -50,6 +62,30 @@ func getComponentsHandler(t *testing.T, comps *fleetdb.ServerComponentSlice, cod
 			var err error
 			srvResponse := fleetdb.ServerResponse{
 				Records: comps,
+			}
+			byt, err = json.Marshal(srvResponse)
+			if err != nil {
+				t.Fatalf("serializing server response: %s", err.Error())
+			}
+		}
+
+		w.WriteHeader(code)
+		if byt != nil {
+			_, err := w.Write(byt)
+			if err != nil {
+				t.Fatalf("writing http response: %s", err.Error())
+			}
+		}
+	}
+}
+
+func getComponentTypesHandler(t *testing.T, comps *fleetdb.ServerComponentSlice, code int) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		var byt []byte
+		if comps != nil {
+			var err error
+			srvResponse := fleetdb.ServerResponse{
+				Records: validComponentTypes,
 			}
 			byt, err = json.Marshal(srvResponse)
 			if err != nil {
@@ -82,6 +118,9 @@ func TestFetchServerComponents(t *testing.T) {
 				w.WriteHeader(http.StatusBadRequest)
 			},
 		)
+		mux.HandleFunc("/api/v1/server-component-types",
+			getComponentTypesHandler(t, &validComponents, 200),
+		)
 		mux.HandleFunc(
 			fmt.Sprintf("/api/v1/servers/%s/components", serverUUID),
 			getComponentsHandler(t, &validComponents, 200),
@@ -91,7 +130,7 @@ func TestFetchServerComponents(t *testing.T) {
 
 		logger := app.GetLogger(true)
 
-		client, err := internalfleetdb.NewFleetDBClient(&app.Configuration{
+		client, err := internalfleetdb.NewFleetDBClient(context.Background(), &app.Configuration{
 			FleetDBAddress: ts.URL,
 		})
 		require.NoError(t, err)
@@ -111,6 +150,9 @@ func TestFetchServerComponents(t *testing.T) {
 				w.WriteHeader(http.StatusBadRequest)
 			},
 		)
+		mux.HandleFunc("/api/v1/server-component-types",
+			getComponentTypesHandler(t, &validComponents, 200),
+		)
 		mux.HandleFunc(
 			fmt.Sprintf("/api/v1/servers/%s/components", serverUUID),
 			getComponentsHandler(t, nil, 500),
@@ -120,7 +162,7 @@ func TestFetchServerComponents(t *testing.T) {
 
 		logger := app.GetLogger(true)
 
-		client, err := internalfleetdb.NewFleetDBClient(&app.Configuration{
+		client, err := internalfleetdb.NewFleetDBClient(context.Background(), &app.Configuration{
 			FleetDBAddress: ts.URL,
 		})
 		require.NoError(t, err)
