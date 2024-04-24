@@ -22,6 +22,7 @@ func processInband(ctx context.Context, c internalfleetdb.Client, server *fleetd
 func processOutofband(ctx context.Context, c internalfleetdb.Client, server *fleetdb.Server, dev *types.InventoryDevice, log *zap.Logger) error { //nolint
 	log.Info("processing", zap.String("server", server.Name), zap.String("device", dev.Inv.Serial))
 	if err := verifyComponent(c, server, dev, log); err != nil {
+		log.Error("verify component", zap.String("server", server.Name), zap.String("err", err.Error()))
 		return err
 	}
 	return c.UpdateServerInventory(ctx, server, dev, log, false)

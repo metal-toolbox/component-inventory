@@ -224,6 +224,11 @@ func composeInventoryHandler(theApp *app.App, fn inventoryHandler) gin.HandlerFu
 			return
 		}
 
+		if dev.Inv == nil {
+			reject(ctx, http.StatusBadRequest, "empty inventory", "")
+			return
+		}
+
 		fleetDBClient, err := internalfleetdb.NewFleetDBClient(ctx, theApp.Cfg)
 		if err != nil {
 			ctx.JSON(http.StatusInternalServerError, map[string]any{

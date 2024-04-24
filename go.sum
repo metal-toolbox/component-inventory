@@ -500,12 +500,11 @@ github.com/mattn/go-isatty v0.0.16/go.mod h1:kYGgaQfpe5nmfYZH+SKPsOc2e4SrIfOl2e/
 github.com/mattn/go-isatty v0.0.20 h1:xfD0iDuEKnDkl03q4limB+vH+GxLEtL/jb4xVJSWWEY=
 github.com/mattn/go-isatty v0.0.20/go.mod h1:W+V8PltTTMOvKvAeJH7IuucS94S2C6jfK/D7dTCTo3Y=
 github.com/mattn/go-sqlite3 v1.14.6/go.mod h1:NyWgC/yNuGj7Q9rpYnZvas74GogHl5/Z4A/KQRfk6bU=
+github.com/mattn/go-sqlite3 v1.14.14 h1:qZgc/Rwetq+MtyE18WhzjokPD93dNqLGNT3QJuLvBGw=
 github.com/mattn/go-sqlite3 v1.14.14/go.mod h1:NyWgC/yNuGj7Q9rpYnZvas74GogHl5/Z4A/KQRfk6bU=
-github.com/mattn/go-sqlite3 v2.0.1+incompatible h1:xQ15muvnzGBHpIpdrNi1DA5x0+TcBZzsIDwmw9uTHzw=
-github.com/mattn/go-sqlite3 v2.0.1+incompatible/go.mod h1:FPy6KqzDD04eiIsT53CuJW3U88zkxoIYsOqkbpncsNc=
 github.com/matttproud/golang_protobuf_extensions v1.0.1/go.mod h1:D8He9yQNgCq6Z5Ld7szi9bcBfOoFv/3dc6xSMkL2PC0=
-github.com/metal-toolbox/alloy v0.3.3-0.20240320183632-05dfbd5e9110 h1:v3PTHUK9KIF/mEmctQ5mgsBtG8dtdfboHI/7QQg/Ft0=
-github.com/metal-toolbox/alloy v0.3.3-0.20240320183632-05dfbd5e9110/go.mod h1:NcVZtbVhBCcpyTHew0TJ8yzon69vMf+rGMLoGb9jTa0=
+github.com/metal-toolbox/alloy v0.3.3-0.20240415055734-d09250fed38a h1:w6uita6zAXZoGn75vcnEDW2Y6K1rYeLWnv7EXAemByE=
+github.com/metal-toolbox/alloy v0.3.3-0.20240415055734-d09250fed38a/go.mod h1:Sv+oD+xnACNV3E7r9kmtgUi1LGKQumTv7mpWOe8a2VU=
 github.com/metal-toolbox/fleetdb v0.17.2-0.20240419204835-60c421433f0a h1:Jrjbk0M8EiljlgxeLso232AizQzuaQ4Bnqf8L9ITkug=
 github.com/metal-toolbox/fleetdb v0.17.2-0.20240419204835-60c421433f0a/go.mod h1:U9YArAdibILSBJzNbmtJAz6m+Cljce6a7pL0JkOckqQ=
 github.com/metal-toolbox/rivets v1.0.3 h1:ZW9q8V3vz6VxAczC4eR1YJdl+kapHF3ebVc+4r3NmR8=
