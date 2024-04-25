@@ -2,13 +2,12 @@ package internalfleetdb
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/metal-toolbox/alloy/types"
 	"github.com/metal-toolbox/component-inventory/internal/app"
-	"github.com/metal-toolbox/component-inventory/pkg/api/constants"
+	"github.com/metal-toolbox/component-inventory/internal/inventoryconverter"
 	fleetdb "github.com/metal-toolbox/fleetdb/pkg/api/v1"
 	"go.uber.org/zap"
 )
@@ -16,12 +15,11 @@ import (
 type Client interface {
 	GetServer(context.Context, uuid.UUID) (*fleetdb.Server, *fleetdb.ServerResponse, error)
 	GetComponents(context.Context, uuid.UUID, *fleetdb.PaginationParams) (fleetdb.ServerComponentSlice, *fleetdb.ServerResponse, error)
-	UpdateAttributes(context.Context, *fleetdb.Server, *types.InventoryDevice, *zap.Logger) error
-	UpdateServerBIOSConfig() error
+	UpdateServerInventory(context.Context, *fleetdb.Server, *types.InventoryDevice, *zap.Logger, bool) error
 }
 
 // Creates a new Client, with reasonable defaults
-func NewFleetDBClient(cfg *app.Configuration) (Client, error) {
+func NewFleetDBClient(ctx context.Context, cfg *app.Configuration) (Client, error) {
 	client, err := fleetdb.NewClient(cfg.FleetDBAddress, nil)
 	if err != nil {
 		return nil, err
@@ -31,13 +29,26 @@ func NewFleetDBClient(cfg *app.Configuration) (Client, error) {
 		client.SetToken(cfg.FleetDBToken)
 	}
 
+	slugs := make(map[string]*fleetdb.ServerComponentType)
+	serverComponentTypes, _, err := client.ListServerComponentTypes(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get server component types: %w", err)
+	}
+	for _, ct := range serverComponentTypes {
+		slugs[ct.Slug] = ct
+	}
+
 	return &fleetDBClient{
-		client: client,
+		client:                     client,
+		slugs:                      slugs,
+		inventoryConverterInstance: inventoryconverter.NewInventoryConverter(slugs),
 	}, nil
 }
 
 type fleetDBClient struct {
-	client *fleetdb.Client
+	client                     *fleetdb.Client
+	slugs                      map[string]*fleetdb.ServerComponentType
+	inventoryConverterInstance *inventoryconverter.InventoryConverter
 }
 
 func (fc fleetDBClient) GetServer(ctx context.Context, id uuid.UUID) (*fleetdb.Server, *fleetdb.ServerResponse, error) {
@@ -48,69 +59,17 @@ func (fc fleetDBClient) GetComponents(ctx context.Context, id uuid.UUID, params 
 	return fc.client.GetComponents(ctx, id, params)
 }
 
-func (fc fleetDBClient) UpdateAttributes(ctx context.Context, server *fleetdb.Server, dev *types.InventoryDevice, log *zap.Logger) error {
-	return createUpdateServerAttributes(ctx, fc.client, server, dev, log)
-}
-
-// Functions below may be refactored in the near future.
-func createUpdateServerAttributes(ctx context.Context, c *fleetdb.Client, server *fleetdb.Server, dev *types.InventoryDevice, log *zap.Logger) error {
-	newVendorData, newVendorAttrs, err := deviceVendorAttributes(dev)
+func (fc fleetDBClient) UpdateServerInventory(ctx context.Context, server *fleetdb.Server, dev *types.InventoryDevice, log *zap.Logger, inband bool) error {
+	log.Info("update server inventory", zap.String("server", server.Name))
+	rivetsServer, err := fc.inventoryConverterInstance.ToRivetsServer(server.UUID.String(), server.FacilityCode, dev.Inv, dev.BiosCfg)
 	if err != nil {
+		log.Error("convert inventory fail", zap.String("server", server.Name), zap.String("err", err.Error()))
 		return err
 	}
-
-	// identify current vendor data in the inventory
-	existingVendorAttrs := attributeByNamespace(constants.ServerVendorAttributeNS, server.Attributes)
-	if existingVendorAttrs == nil {
-		// create if none exists
-		_, err = c.CreateAttributes(ctx, server.UUID, *newVendorAttrs)
+	_, err = fc.client.SetServerInventory(ctx, server.UUID, rivetsServer, inband)
+	if err != nil {
+		log.Error("set inventory fail", zap.String("server", server.Name), zap.String("err", err.Error()))
 		return err
 	}
-
-	// unpack vendor data from inventory
-	existingVendorData := map[string]string{}
-	if err := json.Unmarshal(existingVendorAttrs.Data, &existingVendorData); err != nil {
-		// update vendor data since it seems to be invalid
-		log.Warn("server vendor attributes data invalid, updating..")
-
-		_, err = c.UpdateAttributes(ctx, server.UUID, constants.ServerVendorAttributeNS, newVendorAttrs.Data)
-
-		return err
-	}
-
-	updatedVendorData := existingVendorData
-	var changes bool
-	for key := range newVendorData {
-		if updatedVendorData[key] == "" || updatedVendorData[key] == "unknown" {
-			if newVendorData[key] != "unknown" {
-				changes = true
-				updatedVendorData[key] = newVendorData[key]
-			}
-		}
-	}
-
-	if !changes {
-		return nil
-	}
-
-	if len(updatedVendorData) > 0 {
-		updateBytes, err := json.Marshal(updatedVendorData)
-		if err != nil {
-			return err
-		}
-
-		_, err = c.UpdateAttributes(ctx, server.UUID, constants.ServerVendorAttributeNS, updateBytes)
-
-		return err
-	}
-
 	return nil
-}
-
-func (fc fleetDBClient) UpdateServerBIOSConfig() error {
-	return createUpdateServerBIOSConfig()
-}
-
-func createUpdateServerBIOSConfig() error {
-	return fmt.Errorf("unimplemented")
 }

@@ -1,14 +1,16 @@
 module github.com/metal-toolbox/component-inventory
 
-go 1.21
+go 1.22
+
+toolchain go1.22.2
 
 require (
 	github.com/bmc-toolbox/common v0.0.0-20240416132216-a56a09c16f4e
 	github.com/equinix-labs/otel-init-go v0.0.9
 	github.com/gin-gonic/gin v1.9.1
 	github.com/google/uuid v1.6.0
-	github.com/metal-toolbox/alloy v0.3.3-0.20240320183632-05dfbd5e9110
-	github.com/metal-toolbox/fleetdb v0.17.1
+	github.com/metal-toolbox/alloy v0.3.3-0.20240415055734-d09250fed38a
+	github.com/metal-toolbox/fleetdb v0.17.2-0.20240419204835-60c421433f0a
 	github.com/metal-toolbox/rivets v1.0.3
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.19.0
