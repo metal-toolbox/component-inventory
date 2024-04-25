@@ -14,7 +14,7 @@ import (
 	"github.com/metal-toolbox/component-inventory/internal/metrics"
 	"github.com/metal-toolbox/component-inventory/internal/version"
 	"github.com/metal-toolbox/component-inventory/pkg/api/constants"
-	fleetdb "github.com/metal-toolbox/fleetdb/pkg/api/v1"
+	rivets "github.com/metal-toolbox/rivets/types"
 	"go.hollow.sh/toolbox/ginauth"
 	"go.hollow.sh/toolbox/ginjwt"
 	"go.uber.org/zap"
@@ -155,12 +155,12 @@ func ComposeHTTPServer(theApp *app.App) *http.Server {
 	// add an API to ingest inventory data
 	g.POST(constants.InbandInventoryEndpoint+"/:server",
 		composeAuthHandler(updateScopes("server:component")),
-		composeInventoryHandler(theApp, processInband),
+		composeInventoryHandler(theApp, processInband, true),
 	)
 
 	g.POST(constants.OutofbandInventoryEndpoint+"/:server",
 		composeAuthHandler(updateScopes("server:component")),
-		composeInventoryHandler(theApp, processOutofband),
+		composeInventoryHandler(theApp, processOutofband, false),
 	)
 
 	return &http.Server{
@@ -201,7 +201,7 @@ func wrapAPICall(fn apiHandler) gin.HandlerFunc {
 	}
 }
 
-type inventoryHandler func(context.Context, internalfleetdb.Client, *fleetdb.Server, *types.InventoryDevice, *zap.Logger) error
+type inventoryHandler func(context.Context, internalfleetdb.Client, *rivets.Server, *types.InventoryDevice, *zap.Logger) error
 
 func reject(ctx *gin.Context, code int, msg, err string) {
 	ctx.JSON(code, map[string]any{
@@ -210,7 +210,7 @@ func reject(ctx *gin.Context, code int, msg, err string) {
 	})
 }
 
-func composeInventoryHandler(theApp *app.App, fn inventoryHandler) gin.HandlerFunc {
+func composeInventoryHandler(theApp *app.App, fn inventoryHandler, inband bool) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		serverID, err := uuid.Parse(ctx.Param("server"))
 		if err != nil {
@@ -238,7 +238,8 @@ func composeInventoryHandler(theApp *app.App, fn inventoryHandler) gin.HandlerFu
 			return
 		}
 
-		server, _, err := fleetDBClient.GetServer(ctx, serverID)
+		// Will move it into processInband/processOutband
+		server, _, err := fleetDBClient.GetServerInventory(ctx, serverID, inband)
 		if err != nil {
 			reject(ctx, http.StatusBadRequest, "server not exisit", err.Error())
 			return

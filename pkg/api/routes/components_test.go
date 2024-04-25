@@ -12,8 +12,11 @@ import (
 	"github.com/metal-toolbox/component-inventory/internal/app"
 	"github.com/stretchr/testify/require"
 
+	common "github.com/bmc-toolbox/common"
 	internalfleetdb "github.com/metal-toolbox/component-inventory/internal/fleetdb"
 	fleetdb "github.com/metal-toolbox/fleetdb/pkg/api/v1"
+	rivets "github.com/metal-toolbox/rivets/types"
+	"go.uber.org/zap"
 )
 
 var serverUUID = uuid.New()
@@ -173,4 +176,122 @@ func TestFetchServerComponents(t *testing.T) {
 		require.ErrorAs(t, err, &srvErr, "unexpected error type")
 		require.Equal(t, 500, srvErr.StatusCode)
 	})
+}
+
+func TestCompareComponents(t *testing.T) {
+	testCases := []struct {
+		desc        string
+		server      *rivets.Server
+		dev         *rivets.Server
+		expectMatch bool
+	}{
+		{
+			"2 servers nil component match case",
+			&rivets.Server{
+				Name:       "slug1",
+				Components: nil,
+				ID:         "123",
+			},
+			&rivets.Server{
+				Name:       "slug2",
+				Components: nil,
+				ID:         "124",
+			},
+			true,
+		},
+		{
+			"2 servers components match case",
+			&rivets.Server{
+				Name: "server1",
+				Components: []*rivets.Component{
+					{
+						Name: "BIOS",
+						Firmware: &common.Firmware{
+							Installed: "1.2.3",
+						},
+						Vendor: "Dell",
+						Model:  "model1",
+					},
+				},
+				ID: "123",
+			},
+			&rivets.Server{
+				Name: "server2",
+				Components: []*rivets.Component{
+					{
+						Name: "BIOS",
+						Firmware: &common.Firmware{
+							Installed: "1.2.3",
+						},
+						Vendor: "Dell",
+						Model:  "model1",
+					},
+				},
+				ID: "124",
+			},
+			true,
+		},
+		{
+			"2 servers components not match case",
+			&rivets.Server{
+				Name: "server1",
+				Components: []*rivets.Component{
+					{
+						Name: "BIOS",
+						Firmware: &common.Firmware{
+							Installed: "1.2.3",
+						},
+						Vendor: "Dell",
+						Model:  "model1",
+					},
+				},
+				ID: "123",
+			},
+			&rivets.Server{
+				Name: "server2",
+				Components: []*rivets.Component{
+					{
+						Name: "BIOS",
+						Firmware: &common.Firmware{
+							Installed: "1.2.4",
+						},
+						Vendor: "Dell",
+						Model:  "model",
+					},
+				},
+				ID: "124",
+			},
+			false,
+		},
+		{
+			"expected alloy server nil components not match case",
+			&rivets.Server{
+				Name: "server1",
+				Components: []*rivets.Component{
+					{
+						Name: "BIOS",
+						Firmware: &common.Firmware{
+							Installed: "1,2,3",
+						},
+						Vendor: "Dell",
+						Model:  "model1",
+					},
+				},
+				ID: "123",
+			},
+			&rivets.Server{
+				Name:       "server2",
+				Components: nil,
+				ID:         "124",
+			},
+			false,
+		},
+	}
+
+	for _, tc := range testCases {
+		if got := compareComponents(tc.server, tc.dev, zap.NewNop()); got != tc.expectMatch {
+			t.Errorf("test %v got compare result %v, expect %v", tc.desc, got, tc.expectMatch)
+		}
+	}
+
 }

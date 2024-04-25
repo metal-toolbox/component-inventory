@@ -2,44 +2,48 @@ package routes
 
 import (
 	"context"
-	"fmt"
-	"strings"
 
+	"github.com/google/uuid"
 	"github.com/metal-toolbox/alloy/types"
 	internalfleetdb "github.com/metal-toolbox/component-inventory/internal/fleetdb"
-	fleetdb "github.com/metal-toolbox/fleetdb/pkg/api/v1"
+	rivets "github.com/metal-toolbox/rivets/types"
 	"go.uber.org/zap"
 )
 
-func processInband(ctx context.Context, c internalfleetdb.Client, server *fleetdb.Server, dev *types.InventoryDevice, log *zap.Logger) error { //nolint
+func processInband(ctx context.Context, c internalfleetdb.Client, server *rivets.Server, dev *types.InventoryDevice, log *zap.Logger) error { //nolint
 	log.Info("processing", zap.String("server", server.Name), zap.String("device", dev.Inv.Serial))
-	if err := verifyComponent(c, server, dev, log); err != nil {
-		return err
-	}
-	return c.UpdateServerInventory(ctx, server, dev, log, true)
-}
-
-func processOutofband(ctx context.Context, c internalfleetdb.Client, server *fleetdb.Server, dev *types.InventoryDevice, log *zap.Logger) error { //nolint
-	log.Info("processing", zap.String("server", server.Name), zap.String("device", dev.Inv.Serial))
-	if err := verifyComponent(c, server, dev, log); err != nil {
-		log.Error("verify component", zap.String("server", server.Name), zap.String("err", err.Error()))
-		return err
-	}
-	return c.UpdateServerInventory(ctx, server, dev, log, false)
-}
-
-func verifyComponent(c internalfleetdb.Client, server *fleetdb.Server, dev *types.InventoryDevice, log *zap.Logger) error {
-	components, err := fetchServerComponents(c, server.UUID, log)
+	srvID, err := uuid.Parse(server.ID)
 	if err != nil {
-		if strings.Contains(err.Error(), "404") {
-			// The server doesn't have components, we can create it.
-			return nil
-		}
+		log.Error("failed to parse server ID", zap.String("server", server.ID), zap.String("err", err.Error()))
 		return err
 	}
-	return isBadComponents(components, dev)
+
+	rivetsServer, err := c.GetInventoryConverter().ToRivetsServer(server.ID, server.Facility, dev.Inv, dev.BiosCfg)
+	if err != nil {
+		log.Error("convert inventory fail", zap.String("server", server.Name), zap.String("err", err.Error()))
+		return err
+	}
+
+	compareComponents(server, rivetsServer, log)
+
+	return c.UpdateServerInventory(ctx, srvID, rivetsServer, true, log)
 }
 
-func isBadComponents(_ serverComponents, _ *types.InventoryDevice) error {
-	return fmt.Errorf("unimplement")
+func processOutofband(ctx context.Context, c internalfleetdb.Client, server *rivets.Server, dev *types.InventoryDevice, log *zap.Logger) error { //nolint
+	log.Info("processing", zap.String("server", server.ID), zap.String("device", dev.Inv.Serial))
+	srvID, err := uuid.Parse(server.ID)
+	if err != nil {
+		log.Error("failed to parse server ID", zap.String("server", server.ID), zap.String("err", err.Error()))
+		return err
+	}
+
+	rivetsServer, err := c.GetInventoryConverter().ToRivetsServer(server.ID, server.Facility, dev.Inv, dev.BiosCfg)
+	if err != nil {
+		log.Error("convert inventory fail", zap.String("server", server.Name), zap.String("err", err.Error()))
+		return err
+	}
+
+	compareComponents(server, rivetsServer, log)
+
+	return c.UpdateServerInventory(ctx, srvID, rivetsServer, false, log)
 }

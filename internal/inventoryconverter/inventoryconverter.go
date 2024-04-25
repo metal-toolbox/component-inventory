@@ -26,6 +26,11 @@ func (ic *InventoryConverter) ToRivetsServer(serverID, facility string, device *
 		return nil, err
 	}
 
+	deviceState := ""
+	if device.Status != nil {
+		deviceState = device.Status.State
+	}
+
 	return &rivets.Server{
 		BIOSCfg:    biosCfg,
 		ID:         serverID,
@@ -34,7 +39,7 @@ func (ic *InventoryConverter) ToRivetsServer(serverID, facility string, device *
 		Vendor:     device.Vendor,
 		Model:      device.Model,
 		Serial:     device.Serial,
-		Status:     device.Status.State,
+		Status:     deviceState,
 		Components: components,
 	}, nil
 }
