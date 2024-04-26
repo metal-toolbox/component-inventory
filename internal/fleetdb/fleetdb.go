@@ -2,8 +2,8 @@ package internalfleetdb
 
 import (
 	"context"
-	"fmt"
 
+	common "github.com/bmc-toolbox/common"
 	"github.com/google/uuid"
 	"github.com/metal-toolbox/component-inventory/internal/app"
 	"github.com/metal-toolbox/component-inventory/internal/inventoryconverter"
@@ -20,7 +20,7 @@ type Client interface {
 }
 
 // Creates a new Client, with reasonable defaults
-func NewFleetDBClient(ctx context.Context, cfg *app.Configuration) (Client, error) {
+func NewFleetDBClient(_ context.Context, cfg *app.Configuration) (Client, error) {
 	client, err := fleetdb.NewClient(cfg.FleetDBAddress, nil)
 	if err != nil {
 		return nil, err
@@ -30,17 +30,10 @@ func NewFleetDBClient(ctx context.Context, cfg *app.Configuration) (Client, erro
 		client.SetToken(cfg.FleetDBToken)
 	}
 
-	// TODO: replace it with common.ComponentTypes() after figuring out
-	// how to fetch ServerComponentType ID.
-	// Then it's cleaner to move inventoryConverterInstance to the router
-	// instead of the Client interface.
-	slugs := make(map[string]*fleetdb.ServerComponentType)
-	serverComponentTypes, _, err := client.ListServerComponentTypes(ctx, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get server component types: %w", err)
-	}
+	slugs := make(map[string]bool)
+	serverComponentTypes := common.ComponentTypes()
 	for _, ct := range serverComponentTypes {
-		slugs[ct.Slug] = ct
+		slugs[ct] = true
 	}
 
 	return &fleetDBClient{
