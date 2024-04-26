@@ -5,17 +5,18 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/metal-toolbox/alloy/types"
 	"github.com/metal-toolbox/component-inventory/internal/app"
 	"github.com/metal-toolbox/component-inventory/internal/inventoryconverter"
 	fleetdb "github.com/metal-toolbox/fleetdb/pkg/api/v1"
+	rivets "github.com/metal-toolbox/rivets/types"
 	"go.uber.org/zap"
 )
 
 type Client interface {
-	GetServer(context.Context, uuid.UUID) (*fleetdb.Server, *fleetdb.ServerResponse, error)
 	GetComponents(context.Context, uuid.UUID, *fleetdb.PaginationParams) (fleetdb.ServerComponentSlice, *fleetdb.ServerResponse, error)
-	UpdateServerInventory(context.Context, *fleetdb.Server, *types.InventoryDevice, *zap.Logger, bool) error
+	GetServerInventory(context.Context, uuid.UUID, bool) (*rivets.Server, *fleetdb.ServerResponse, error)
+	UpdateServerInventory(context.Context, uuid.UUID, *rivets.Server, bool, *zap.Logger) error
+	GetInventoryConverter() *inventoryconverter.InventoryConverter
 }
 
 // Creates a new Client, with reasonable defaults
@@ -29,6 +30,10 @@ func NewFleetDBClient(ctx context.Context, cfg *app.Configuration) (Client, erro
 		client.SetToken(cfg.FleetDBToken)
 	}
 
+	// TODO: replace it with common.ComponentTypes() after figuring out
+	// how to fetch ServerComponentType ID.
+	// Then it's cleaner to move inventoryConverterInstance to the router
+	// instead of the Client interface.
 	slugs := make(map[string]*fleetdb.ServerComponentType)
 	serverComponentTypes, _, err := client.ListServerComponentTypes(ctx, nil)
 	if err != nil {
@@ -40,36 +45,31 @@ func NewFleetDBClient(ctx context.Context, cfg *app.Configuration) (Client, erro
 
 	return &fleetDBClient{
 		client:                     client,
-		slugs:                      slugs,
 		inventoryConverterInstance: inventoryconverter.NewInventoryConverter(slugs),
 	}, nil
 }
 
 type fleetDBClient struct {
 	client                     *fleetdb.Client
-	slugs                      map[string]*fleetdb.ServerComponentType
 	inventoryConverterInstance *inventoryconverter.InventoryConverter
 }
 
-func (fc fleetDBClient) GetServer(ctx context.Context, id uuid.UUID) (*fleetdb.Server, *fleetdb.ServerResponse, error) {
-	return fc.client.Get(ctx, id)
+func (fc fleetDBClient) GetServerInventory(ctx context.Context, id uuid.UUID, inband bool) (*rivets.Server, *fleetdb.ServerResponse, error) {
+	return fc.client.GetServerInventory(ctx, id, inband)
 }
 
 func (fc fleetDBClient) GetComponents(ctx context.Context, id uuid.UUID, params *fleetdb.PaginationParams) (fleetdb.ServerComponentSlice, *fleetdb.ServerResponse, error) {
 	return fc.client.GetComponents(ctx, id, params)
 }
 
-func (fc fleetDBClient) UpdateServerInventory(ctx context.Context, server *fleetdb.Server, dev *types.InventoryDevice, log *zap.Logger, inband bool) error {
-	log.Info("update server inventory", zap.String("server", server.Name))
-	rivetsServer, err := fc.inventoryConverterInstance.ToRivetsServer(server.UUID.String(), server.FacilityCode, dev.Inv, dev.BiosCfg)
-	if err != nil {
-		log.Error("convert inventory fail", zap.String("server", server.Name), zap.String("err", err.Error()))
-		return err
-	}
-	_, err = fc.client.SetServerInventory(ctx, server.UUID, rivetsServer, inband)
-	if err != nil {
-		log.Error("set inventory fail", zap.String("server", server.Name), zap.String("err", err.Error()))
+func (fc fleetDBClient) UpdateServerInventory(ctx context.Context, serverID uuid.UUID, rivetsServer *rivets.Server, inband bool, log *zap.Logger) error {
+	if _, err := fc.client.SetServerInventory(ctx, serverID, rivetsServer, inband); err != nil {
+		log.Error("set inventory fail", zap.String("server", serverID.String()), zap.String("err", err.Error()))
 		return err
 	}
 	return nil
+}
+
+func (fc fleetDBClient) GetInventoryConverter() *inventoryconverter.InventoryConverter {
+	return fc.inventoryConverterInstance
 }

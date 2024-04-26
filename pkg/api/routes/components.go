@@ -47,3 +47,67 @@ func fetchServerComponents(client internalfleetdb.Client, srvid uuid.UUID, l *za
 	}
 	return comps, nil
 }
+
+// compareComponents compares components between two rivets.Server.
+// It logs differences and return false if there are differences.
+// The return value is used for testing only.
+func compareComponents(fleetServer, alloyServer *rivets.Server, log *zap.Logger) bool {
+	match := true
+	alloyComponentsMap := make(map[string][]*rivets.Component)
+	for _, component := range alloyServer.Components {
+		slug := component.Name
+		if _, ok := alloyComponentsMap[slug]; !ok {
+			alloyComponentsMap[slug] = make([]*rivets.Component, 0)
+		}
+		alloyComponentsMap[slug] = append(alloyComponentsMap[slug], component)
+	}
+
+	for _, fleetComponent := range fleetServer.Components {
+		slug := fleetComponent.Name
+		alloyComponents, ok := alloyComponentsMap[slug]
+		if !ok {
+			match = false
+			// no slug in alloy list, fleet component not in alloy list
+			fields := []zap.Field{
+				zap.String("device.id", fleetServer.ID),
+				zap.String("component", slug),
+				zap.String("expected(alloy)", "nil"),
+				zap.String("current(fleetdb)", fleetComponent.Firmware.Installed),
+			}
+			log.Warn("fleetdb component not listed in alloy", fields...)
+			continue
+		}
+
+		var listedByAlloy bool
+		for _, alloyComponent := range alloyComponents {
+			if alloyComponent.Vendor+alloyComponent.Model == fleetComponent.Vendor+fleetComponent.Model {
+				// fleet component in alloy list
+				listedByAlloy = true
+				if alloyComponent.Firmware.Installed != fleetComponent.Firmware.Installed {
+					match = false
+					fields := []zap.Field{
+						zap.String("device.id", fleetServer.ID),
+						zap.String("component", slug),
+						zap.String("expected(alloy)", alloyComponent.Firmware.Installed),
+						zap.String("current(fleetdb)", fleetComponent.Firmware.Installed),
+					}
+					log.Warn("component firmware needs update", fields...)
+				}
+				break
+			}
+		}
+
+		if !listedByAlloy {
+			// has slug in alloy list, but fleet vendor+model doesn't in alloy list
+			match = false
+			fields := []zap.Field{
+				zap.String("device.id", fleetServer.ID),
+				zap.String("component", slug),
+				zap.String("expected(alloy)", "nil"),
+				zap.String("current(fleetdb)", fleetComponent.Firmware.Installed),
+			}
+			log.Warn("fleetdb component not listed in alloy", fields...)
+		}
+	}
+	return match
+}
