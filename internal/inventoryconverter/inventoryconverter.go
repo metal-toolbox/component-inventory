@@ -6,15 +6,14 @@ import (
 	"strings"
 
 	"github.com/bmc-toolbox/common"
-	fleetdb "github.com/metal-toolbox/fleetdb/pkg/api/v1"
 	rivets "github.com/metal-toolbox/rivets/types"
 )
 
 type InventoryConverter struct {
-	componentSlug map[string]*fleetdb.ServerComponentType
+	componentSlug map[string]bool
 }
 
-func NewInventoryConverter(componentSlug map[string]*fleetdb.ServerComponentType) *InventoryConverter {
+func NewInventoryConverter(componentSlug map[string]bool) *InventoryConverter {
 	return &InventoryConverter{
 		componentSlug: componentSlug,
 	}
@@ -55,11 +54,10 @@ func (ic *InventoryConverter) newComponent(slug, cvendor, cmodel, cserial, cprod
 		cmodel = cproduct
 	}
 	return &rivets.Component{
-		ID:         ic.componentSlug[slug].ID,
 		Firmware:   firmware,
 		Status:     status,
 		Attributes: attrs,
-		Name:       ic.componentSlug[slug].Name,
+		Name:       slug,
 		Vendor:     cvendor,
 		Model:      cmodel,
 		Serial:     cserial,

@@ -98,7 +98,7 @@ func compareComponents(fleetServer, alloyServer *rivets.Server, log *zap.Logger)
 		}
 
 		if !listedByAlloy {
-			// has slug in alloy list, but fleet vendor+model doesn't in alloy list
+			// alloy did not report hardware that has previously been in fleetdb
 			match = false
 			fields := []zap.Field{
 				zap.String("device.id", fleetServer.ID),

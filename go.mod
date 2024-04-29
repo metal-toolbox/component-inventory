@@ -5,7 +5,7 @@ go 1.22
 toolchain go1.22.2
 
 require (
-	github.com/bmc-toolbox/common v0.0.0-20240416132216-a56a09c16f4e
+	github.com/bmc-toolbox/common v0.0.0-20240423132505-01bb4bac6913
 	github.com/equinix-labs/otel-init-go v0.0.9
 	github.com/gin-gonic/gin v1.9.1
 	github.com/google/uuid v1.6.0
