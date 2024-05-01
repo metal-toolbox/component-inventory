@@ -47,10 +47,15 @@ push-image: image
 # need to update the sandbox Makefile to get helm to load everything properly.
 load-sandbox:
 	@cp helm/values.yaml "${SANDBOX_TEMPLATE_DIR}/cis-values.yaml"
-	@cp helm/service.yaml "${SANDBOX_TEMPLATE_DIR}/cis-service.yaml"
-	@cp helm/deployment.yaml "${SANDBOX_TEMPLATE_DIR}/cis-deployment.yaml"
-	@cp helm/configmap.yaml "${SANDBOX_TEMPLATE_DIR}/cis-configmap.yaml"
+	@cp helm/templates/service.yaml "${SANDBOX_TEMPLATE_DIR}/cis-service.yaml"
+	@cp helm/templates/deployment.yaml "${SANDBOX_TEMPLATE_DIR}/cis-deployment.yaml"
+	@cp helm/templates/configmap.yaml "${SANDBOX_TEMPLATE_DIR}/cis-configmap.yaml"
 	@echo "Be sure to do a helm (re)load to get the service started"
+
+## generate mock client
+gen-client-mock:
+	go install go.uber.org/mock/mockgen@latest
+	mockgen -package=client -source=pkg/api/client/client.go -destination=pkg/api/client/mock/mockclient.go
 
 # https://gist.github.com/prwhite/8168133
 # COLORS

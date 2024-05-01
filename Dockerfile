@@ -1,4 +1,4 @@
-FROM golang:1.21.3-alpine3.18 AS build
+FROM golang:1.22.2-alpine3.18 AS build
 
 ARG APP_NAME
 WORKDIR "/go/src/github.com/metal-toolbox/${APP_NAME}"

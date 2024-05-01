@@ -1,14 +1,20 @@
 package routes
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"github.com/metal-toolbox/alloy/types"
 	"github.com/metal-toolbox/component-inventory/internal/app"
+	internalfleetdb "github.com/metal-toolbox/component-inventory/internal/fleetdb"
 	"github.com/metal-toolbox/component-inventory/internal/metrics"
 	"github.com/metal-toolbox/component-inventory/internal/version"
+	"github.com/metal-toolbox/component-inventory/pkg/api/constants"
+	rivets "github.com/metal-toolbox/rivets/types"
 	"go.hollow.sh/toolbox/ginauth"
 	"go.hollow.sh/toolbox/ginjwt"
 	"go.uber.org/zap"
@@ -17,9 +23,6 @@ import (
 var (
 	readTimeout  = 10 * time.Second
 	writeTimeout = 20 * time.Second
-
-	livenessEndpoint = "/_health/liveness"
-	versionEndpoint  = "/api/version"
 
 	authMiddleWare *ginauth.MultiTokenMiddleware
 	ginNoOp        = func(_ *gin.Context) {}
@@ -86,7 +89,7 @@ func ComposeHTTPServer(theApp *app.App) *http.Server {
 	}
 
 	// set up common middleware for logging and metrics
-	g.Use(composeAppLogging(theApp.Log, livenessEndpoint), gin.Recovery())
+	g.Use(composeAppLogging(theApp.Log, constants.LivenessEndpoint), gin.Recovery())
 
 	// some boilerplate setup
 	g.NoRoute(func(c *gin.Context) {
@@ -98,11 +101,11 @@ func ComposeHTTPServer(theApp *app.App) *http.Server {
 	})
 
 	// a liveness endpoint
-	g.GET(livenessEndpoint, func(c *gin.Context) {
+	g.GET(constants.LivenessEndpoint, func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"time": time.Now()})
 	})
 
-	g.GET(versionEndpoint, func(c *gin.Context) {
+	g.GET(constants.VersionEndpoint, func(c *gin.Context) {
 		c.JSON(http.StatusOK, version.Current())
 	})
 
@@ -115,6 +118,50 @@ func ComposeHTTPServer(theApp *app.App) *http.Server {
 		wrapAPICall(apiError))
 
 	// add other API endpoints to the gin Engine as required
+
+	// get the components associated with a server
+	g.GET(constants.ComponentsEndpoint+"/:server",
+		composeAuthHandler(readScopes("server:component")),
+		func(ctx *gin.Context) {
+			serverID, err := uuid.Parse(ctx.Param("server"))
+			if err != nil {
+				ctx.JSON(http.StatusBadRequest, map[string]any{
+					"message": "invalid server id",
+					"err":     err.Error(),
+				})
+				return
+			}
+
+			client, err := internalfleetdb.NewFleetDBClient(ctx, theApp.Cfg)
+			if err != nil {
+				ctx.JSON(http.StatusInternalServerError, map[string]any{
+					"message": "failed to connect to fleetdb",
+					"error":   err.Error(),
+				})
+				return
+			}
+
+			comps, err := fetchServerComponents(client, serverID, theApp.Log)
+			if err != nil {
+				ctx.JSON(http.StatusInternalServerError, map[string]any{
+					"message": "components unavailable",
+					"error":   err.Error(),
+				})
+				return
+			}
+			ctx.JSON(http.StatusOK, comps)
+		})
+
+	// add an API to ingest inventory data
+	g.POST(constants.InbandInventoryEndpoint+"/:server",
+		composeAuthHandler(updateScopes("server:component")),
+		composeInventoryHandler(theApp, processInband, true),
+	)
+
+	g.POST(constants.OutofbandInventoryEndpoint+"/:server",
+		composeAuthHandler(updateScopes("server:component")),
+		composeInventoryHandler(theApp, processOutofband, false),
+	)
 
 	return &http.Server{
 		Addr:         theApp.Cfg.ListenAddress,
@@ -138,6 +185,7 @@ func wrapAPICall(fn apiHandler) gin.HandlerFunc {
 			ctx.JSON(http.StatusBadRequest, map[string]any{
 				"error": err.Error(),
 			})
+			return
 		}
 
 		obj, err := fn(m)
@@ -150,6 +198,65 @@ func wrapAPICall(fn apiHandler) gin.HandlerFunc {
 			}
 		}
 		ctx.JSON(responseCode, obj)
+	}
+}
+
+type inventoryHandler func(context.Context, internalfleetdb.Client, *rivets.Server, *types.InventoryDevice, *zap.Logger) error
+
+func reject(ctx *gin.Context, code int, msg, err string) {
+	ctx.JSON(code, map[string]any{
+		"message": msg,
+		"err":     err,
+	})
+}
+
+func composeInventoryHandler(theApp *app.App, fn inventoryHandler, inband bool) gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		serverID, err := uuid.Parse(ctx.Param("server"))
+		if err != nil {
+			reject(ctx, http.StatusBadRequest, "invalid server id", err.Error())
+			return
+		}
+
+		var dev types.InventoryDevice
+		if err = ctx.BindJSON(&dev); err != nil {
+			reject(ctx, http.StatusBadRequest, "invalid server inventory", err.Error())
+			return
+		}
+
+		if dev.Inv == nil {
+			reject(ctx, http.StatusBadRequest, "empty inventory", "")
+			return
+		}
+
+		fleetDBClient, err := internalfleetdb.NewFleetDBClient(ctx, theApp.Cfg)
+		if err != nil {
+			ctx.JSON(http.StatusInternalServerError, map[string]any{
+				"message": "failed to connect to fleetdb",
+				"error":   err.Error(),
+			})
+			return
+		}
+
+		// Will move it into processInband/processOutband
+		server, _, err := fleetDBClient.GetServerInventory(ctx, serverID, inband)
+		if err != nil {
+			reject(ctx, http.StatusBadRequest, "server not exisit", err.Error())
+			return
+		}
+
+		if err := fn(
+			ctx,
+			fleetDBClient,
+			server,
+			&dev,
+			theApp.Log,
+		); err != nil {
+			reject(ctx, http.StatusInternalServerError, "unable to process inventory", err.Error())
+			return
+		}
+
+		ctx.Status(http.StatusCreated)
 	}
 }
 
