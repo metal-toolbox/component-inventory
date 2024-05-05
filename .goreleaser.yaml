@@ -1,7 +1,7 @@
 project_name: component-inventory
 before:
   hooks:
-    - go mod download
+    - go mod tidy
 
 builds:
   -
@@ -12,12 +12,11 @@ builds:
       - linux
       - darwin
     ldflags:
-      - -s -w
-      - -X go.infratographer.com/x/versionx.appName={{.ProjectName}}
-      - -X go.infratographer.com/x/versionx.version={{.Version}}
-      - -X go.infratographer.com/x/versionx.commit={{.Commit}}
-      - -X go.infratographer.com/x/versionx.date={{.Date}}
-      - -X go.infratographer.com/x/versionx.builtBy=goreleaser
+      - -X "github.com/metal-toolbox/component-inventory/internal/version.AppVersion={{ .Version }}"
+        -X "github.com/metal-toolbox/component-inventory/internal/version.GoVersion={{ .Env.GOVERSION }}"
+        -X "github.com/metal-toolbox/component-inventory/internal/version.GitCommit={{ .Commit }}"
+        -X "github.com/metal-toolbox/component-inventory/internal/version.GitBranch={{ .Branch }}"
+        -X "github.com/metal-toolbox/component-inventory/internal/version.BuildDate={{ .Date }}"
     binary: component-inventory
 
 archives:
