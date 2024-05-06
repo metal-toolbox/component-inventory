@@ -1,0 +1,18 @@
+FROM golang:1.22.2-alpine3.18 AS build
+
+ARG APP_NAME
+FROM alpine:3.19.1
+ARG APP_NAME
+ENV APP_NAME=${APP_NAME}
+
+RUN echo "${APP_NAME}"
+RUN apk -U add curl
+
+COPY "${APP_NAME}" /fleet/${APP_NAME}
+
+RUN adduser -D fleet
+RUN chown -R fleet:fleet /fleet
+
+USER fleet
+
+ENTRYPOINT "/fleet/${APP_NAME}" "$0" "$@"
