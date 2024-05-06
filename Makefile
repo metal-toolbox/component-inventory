@@ -33,7 +33,13 @@ image:
 		--build-arg LDFLAG_LOCATION=${LDFLAG_LOCATION} \
 		--build-arg GIT_COMMIT=${GIT_COMMIT} --build-arg GIT_BRANCH=${GIT_BRANCH} \
 		--build-arg GIT_SUMMARY=${GIT_SUMMARY} --build-arg VERSION=${VERSION} \
-		--build-arg BUILD_DATE=${BUILD_DATE} 
+		--build-arg BUILD_DATE=${BUILD_DATE} \
+		-f Dockerfile
+
+goreleaser-image:
+	docker build -t ${DOCKER_IMAGE}:latest . \
+		--build-arg APP_NAME=${SERVICE_NAME} \
+		-f Dockerfile.goreleaser 
 
 push-sandbox-image: image
 	docker tag ${DOCKER_IMAGE}:latest ${SANDBOX_IMAGE}:latest
