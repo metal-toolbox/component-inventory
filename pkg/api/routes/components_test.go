@@ -134,7 +134,10 @@ func TestFetchServerComponents(t *testing.T) {
 		logger := app.GetLogger(true)
 
 		client, err := internalfleetdb.NewFleetDBClient(context.Background(), &app.Configuration{
-			FleetDBAddress: ts.URL,
+			FleetDBAPIOptions: app.FleetDBAPIOptions{
+				Endpoint:     ts.URL,
+				DisableOAuth: true,
+			},
 		})
 		require.NoError(t, err)
 
@@ -166,7 +169,10 @@ func TestFetchServerComponents(t *testing.T) {
 		logger := app.GetLogger(true)
 
 		client, err := internalfleetdb.NewFleetDBClient(context.Background(), &app.Configuration{
-			FleetDBAddress: ts.URL,
+			FleetDBAPIOptions: app.FleetDBAPIOptions{
+				Endpoint:     ts.URL,
+				DisableOAuth: true,
+			},
 		})
 		require.NoError(t, err)
 

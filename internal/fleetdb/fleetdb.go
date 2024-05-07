@@ -2,14 +2,21 @@ package internalfleetdb
 
 import (
 	"context"
+	"net/url"
+	"time"
 
 	common "github.com/bmc-toolbox/common"
+	oidc "github.com/coreos/go-oidc"
 	"github.com/google/uuid"
+	"github.com/hashicorp/go-retryablehttp"
 	"github.com/metal-toolbox/component-inventory/internal/app"
 	"github.com/metal-toolbox/component-inventory/internal/inventoryconverter"
 	fleetdb "github.com/metal-toolbox/fleetdb/pkg/api/v1"
 	rivets "github.com/metal-toolbox/rivets/types"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.uber.org/zap"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/clientcredentials"
 )
 
 type Client interface {
@@ -19,15 +26,16 @@ type Client interface {
 	GetInventoryConverter() *inventoryconverter.InventoryConverter
 }
 
+// connectionTimeout is the maximum amount of time spent on each http connection to FleetDBClient.
+var connectionTimeout = 30 * time.Second
+
 // Creates a new Client, with reasonable defaults
-func NewFleetDBClient(_ context.Context, cfg *app.Configuration) (Client, error) {
-	client, err := fleetdb.NewClient(cfg.FleetDBAddress, nil)
+func NewFleetDBClient(ctx context.Context, cfg *app.Configuration) (Client, error) {
+	fleetDBOpts := &cfg.FleetDBAPIOptions
+	client, err := getFleetDBAPIClient(ctx, fleetDBOpts)
+
 	if err != nil {
 		return nil, err
-	}
-
-	if cfg.FleetDBToken != "" {
-		client.SetToken(cfg.FleetDBToken)
 	}
 
 	slugs := make(map[string]bool)
@@ -40,6 +48,56 @@ func NewFleetDBClient(_ context.Context, cfg *app.Configuration) (Client, error)
 		client:                     client,
 		inventoryConverterInstance: inventoryconverter.NewInventoryConverter(slugs),
 	}, nil
+}
+
+func getFleetDBAPIClient(ctx context.Context, cfg *app.FleetDBAPIOptions) (*fleetdb.Client, error) {
+	if cfg.DisableOAuth {
+		return fleetdb.NewClientWithToken("fake", cfg.Endpoint, nil)
+	}
+
+	// init retryable http client
+	retryableClient := retryablehttp.NewClient()
+
+	// set retryable HTTP client to be the otel http client to collect telemetry
+	retryableClient.HTTPClient = otelhttp.DefaultClient
+
+	// setup oidc provider
+	provider, err := oidc.NewProvider(ctx, cfg.OidcIssuerEndpoint)
+	if err != nil {
+		return nil, err
+	}
+
+	clientID := "component-inventory"
+
+	if cfg.OidcClientID != "" {
+		clientID = cfg.OidcClientID
+	}
+
+	// setup oauth configuration
+	oauthConfig := clientcredentials.Config{
+		ClientID:       clientID,
+		ClientSecret:   cfg.OidcClientSecret,
+		TokenURL:       provider.Endpoint().TokenURL,
+		Scopes:         cfg.OidcClientScopes,
+		EndpointParams: url.Values{"audience": []string{cfg.OidcAudienceEndpoint}},
+		// with this the oauth client spends less time identifying the client grant mechanism.
+		AuthStyle: oauth2.AuthStyleInParams,
+	}
+
+	// wrap OAuth transport, cookie jar in the retryable client
+	oAuthclient := oauthConfig.Client(ctx)
+
+	retryableClient.HTTPClient.Transport = oAuthclient.Transport
+	retryableClient.HTTPClient.Jar = oAuthclient.Jar
+
+	httpClient := retryableClient.StandardClient()
+	httpClient.Timeout = connectionTimeout
+
+	return fleetdb.NewClientWithToken(
+		cfg.OidcClientSecret,
+		cfg.Endpoint,
+		httpClient,
+	)
 }
 
 type fleetDBClient struct {

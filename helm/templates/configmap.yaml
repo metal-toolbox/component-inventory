@@ -7,3 +7,6 @@ data:
   config.yaml: |
     listen_address: 0.0.0.0:{{ .Values.app.containerPort }}
     developer_mode: true
+    fleetdb:
+      endpoint: {{ .Values.fleetdb.env.endpoint }}
+      disable_oauth: true
