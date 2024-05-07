@@ -15,7 +15,7 @@ func (c Error) Error() string {
 // RequestError is returned when the client gets an error while performing a request.
 type RequestError struct {
 	Message    string `json:"message"`
-	StatusCode int    `json:"statusCode"`
+	StatusCode int    `json:"status_code"`
 }
 
 // Error returns the RequestError in string format

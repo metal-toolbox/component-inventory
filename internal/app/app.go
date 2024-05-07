@@ -67,7 +67,7 @@ func (a *App) ContextDone() bool {
 // LogRunningConfig does exactly what it says on the tin. It is only a side-effect.
 func (a *App) LogRunningConfig() {
 	a.Log.Info("running configuration",
-		zap.String("fleetdb.address", a.Cfg.FleetDBAddress),
+		zap.String("fleetdb.address", a.Cfg.FleetDBAPIOptions.Endpoint),
 		zap.String("listen.address", a.Cfg.ListenAddress),
 		zap.Bool("developer.mode", a.Cfg.DeveloperMode),
 		// do something for the JWTAuthConfig
@@ -107,13 +107,14 @@ func LoadConfiguration(cfgFile string) (*Configuration, error) {
 		return nil, errors.New("listen address not set")
 	}
 
-	if cfg.FleetDBAddress == "" {
+	if cfg.FleetDBAPIOptions.Endpoint == "" {
 		return nil, errors.New("fleetdb endpoint not set")
 	}
 
 	return cfg, nil
 }
 
+// nolint:gocyclo // parameter validation is cyclomatic
 func envVarOverrides(v *viper.Viper, cfg *Configuration) error {
 	if addr := v.GetString("listen.address"); addr != "" {
 		cfg.ListenAddress = addr
@@ -123,13 +124,57 @@ func envVarOverrides(v *viper.Viper, cfg *Configuration) error {
 		cfg.DeveloperMode = true
 	}
 
-	if dbToken := v.GetString("fleetdb.access.token"); dbToken != "" {
-		cfg.FleetDBToken = dbToken
-	}
-
 	// sanity checks
 	if cfg.ListenAddress == "" {
 		return errors.New("no listen address set")
+	}
+
+	if v.GetString("fleetdb.disable.oauth") != "" {
+		cfg.FleetDBAPIOptions.DisableOAuth = v.GetBool("fleetdb.disable.oauth")
+	}
+
+	if cfg.FleetDBAPIOptions.DisableOAuth {
+		return nil
+	}
+
+	if v.GetString("fleetdb.oidc.issuer.endpoint") != "" {
+		cfg.FleetDBAPIOptions.OidcIssuerEndpoint = v.GetString("fleetdb.oidc.issuer.endpoint")
+	}
+
+	if cfg.FleetDBAPIOptions.OidcAudienceEndpoint == "" {
+		return errors.New("fleetdb oidc.audience.endpoint not defined")
+	}
+
+	if v.GetString("fleetdb.oidc.audience.endpoint") != "" {
+		cfg.FleetDBAPIOptions.OidcAudienceEndpoint = v.GetString("fleetdb.oidc.audience.endpoint")
+	}
+
+	if cfg.FleetDBAPIOptions.OidcAudienceEndpoint == "" {
+		return errors.New("fleetdb oidc.audience.endpoint not defined")
+	}
+
+	if v.GetString("fleetdb.oidc.client.secret") != "" {
+		cfg.FleetDBAPIOptions.OidcClientSecret = v.GetString("fleetdb.oidc.client.secret")
+	}
+
+	if cfg.FleetDBAPIOptions.OidcClientSecret == "" {
+		return errors.New("fleetdb oidc.client.secret not defined")
+	}
+
+	if v.GetString("fleetdb.oidc.client.id") != "" {
+		cfg.FleetDBAPIOptions.OidcClientID = v.GetString("fleetdb.oidc.client.id")
+	}
+
+	if cfg.FleetDBAPIOptions.OidcClientID == "" {
+		return errors.New("fleetdb oidc.client.id not defined")
+	}
+
+	if v.GetString("fleetdb.oidc.client.scopes") != "" {
+		cfg.FleetDBAPIOptions.OidcClientScopes = v.GetStringSlice("fleetdb.oidc.client.scopes")
+	}
+
+	if len(cfg.FleetDBAPIOptions.OidcClientScopes) == 0 {
+		return errors.New("fleetdb oidc.client.scopes not defined")
 	}
 
 	return nil

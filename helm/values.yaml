@@ -1,7 +1,8 @@
 ---
 image:
-  repo: localhost:5001
+  repo: "localhost:5001/component-inventory"
   tag: latest
+  pullPolicy: Always
 
 app:
   name: component-inventory
@@ -9,3 +10,8 @@ app:
   configPath: /etc/cis
   livenessURI: /_health/liveness
   containerPort: 7500
+
+fleetdb:
+  env:
+    endpoint: http://fleetdb:8000
+    disable_oauth: true
