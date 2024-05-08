@@ -141,8 +141,8 @@ func envVarOverrides(v *viper.Viper, cfg *Configuration) error {
 		cfg.FleetDBAPIOptions.OidcIssuerEndpoint = v.GetString("fleetdb.oidc.issuer.endpoint")
 	}
 
-	if cfg.FleetDBAPIOptions.OidcAudienceEndpoint == "" {
-		return errors.New("fleetdb oidc.audience.endpoint not defined")
+	if cfg.FleetDBAPIOptions.OidcIssuerEndpoint == "" {
+		return errors.New("fleetdb oidc.issuer.endpoint not defined")
 	}
 
 	if v.GetString("fleetdb.oidc.audience.endpoint") != "" {
