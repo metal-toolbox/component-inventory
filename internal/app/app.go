@@ -7,6 +7,8 @@ import (
 	"strings"
 	"syscall"
 
+	fleetdb "github.com/metal-toolbox/fleetdb/pkg/api/v1"
+
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
@@ -17,11 +19,12 @@ import (
 const AppName = "component_inventory"
 
 type App struct {
-	Log  *zap.Logger
-	Cfg  *Configuration
-	ctx  context.Context
-	term <-chan os.Signal
-	opts map[string]any
+	Log     *zap.Logger
+	Cfg     *Configuration
+	FleetDB *fleetdb.Client
+	ctx     context.Context
+	term    <-chan os.Signal
+	opts    map[string]any
 }
 
 // Option provides a path for adding arbitrary stuff to an App.
@@ -35,14 +38,15 @@ func NewOption(key string, opt any) Option {
 }
 
 // NewApp composes the provided Configuration and Logger into a new App object
-func NewApp(ctx context.Context, cfg *Configuration, log *zap.Logger, opts ...Option) *App {
+func NewApp(ctx context.Context, cfg *Configuration, log *zap.Logger, fdb *fleetdb.Client, opts ...Option) *App {
 	termChan := make(chan os.Signal, 1)
 	signal.Notify(termChan, syscall.SIGINT, syscall.SIGTERM)
 	app := &App{
-		Log:  log,
-		Cfg:  cfg,
-		ctx:  ctx,
-		term: termChan,
+		Log:     log,
+		Cfg:     cfg,
+		FleetDB: fdb,
+		ctx:     ctx,
+		term:    termChan,
 	}
 
 	for _, opt := range opts {
@@ -67,7 +71,7 @@ func (a *App) ContextDone() bool {
 // LogRunningConfig does exactly what it says on the tin. It is only a side-effect.
 func (a *App) LogRunningConfig() {
 	a.Log.Info("running configuration",
-		zap.String("fleetdb.address", a.Cfg.FleetDBAPIOptions.Endpoint),
+		zap.String("fleetdb.address", a.Cfg.FleetDBOpts.Endpoint),
 		zap.String("listen.address", a.Cfg.ListenAddress),
 		zap.Bool("developer.mode", a.Cfg.DeveloperMode),
 		// do something for the JWTAuthConfig
@@ -98,17 +102,17 @@ func LoadConfiguration(cfgFile string) (*Configuration, error) {
 		return nil, errors.Wrap(err, "unmarshaling config")
 	}
 
-	// for injected overrides like secrets
-	if err := envVarOverrides(v, cfg); err != nil {
-		return nil, errors.Wrap(err, "configuring environment orverrides")
-	}
-
 	if cfg.ListenAddress == "" {
 		return nil, errors.New("listen address not set")
 	}
 
-	if cfg.FleetDBAPIOptions.Endpoint == "" {
+	if cfg.FleetDBOpts.Endpoint == "" {
 		return nil, errors.New("fleetdb endpoint not set")
+	}
+
+	// for injected overrides like secrets
+	if err := envVarOverrides(v, cfg); err != nil {
+		return nil, errors.Wrap(err, "configuring environment orverrides")
 	}
 
 	return cfg, nil
@@ -125,56 +129,44 @@ func envVarOverrides(v *viper.Viper, cfg *Configuration) error {
 	}
 
 	// sanity checks
-	if cfg.ListenAddress == "" {
-		return errors.New("no listen address set")
-	}
-
 	if v.GetString("fleetdb.disable.oauth") != "" {
-		cfg.FleetDBAPIOptions.DisableOAuth = v.GetBool("fleetdb.disable.oauth")
+		cfg.FleetDBOpts.DisableOAuth = v.GetBool("fleetdb.disable.oauth")
 	}
 
-	if cfg.FleetDBAPIOptions.DisableOAuth {
+	if cfg.FleetDBOpts.DisableOAuth {
 		return nil
 	}
 
-	if v.GetString("fleetdb.oidc.issuer.endpoint") != "" {
-		cfg.FleetDBAPIOptions.OidcIssuerEndpoint = v.GetString("fleetdb.oidc.issuer.endpoint")
+	if v.GetString("fleetdb.audience.endpoint") != "" {
+		cfg.FleetDBOpts.AudienceEndpoint = v.GetString("fleetdb.audience.endpoint")
 	}
 
-	if cfg.FleetDBAPIOptions.OidcAudienceEndpoint == "" {
-		return errors.New("fleetdb oidc.audience.endpoint not defined")
+	if cfg.FleetDBOpts.AudienceEndpoint == "" {
+		return errors.New("fleetdb client secret not defined")
 	}
 
-	if v.GetString("fleetdb.oidc.audience.endpoint") != "" {
-		cfg.FleetDBAPIOptions.OidcAudienceEndpoint = v.GetString("fleetdb.oidc.audience.endpoint")
+	if v.GetString("fleetdb.client.id") != "" {
+		cfg.FleetDBOpts.ClientID = v.GetString("fleetdb.client.id")
 	}
 
-	if cfg.FleetDBAPIOptions.OidcAudienceEndpoint == "" {
-		return errors.New("fleetdb oidc.audience.endpoint not defined")
+	if cfg.FleetDBOpts.ClientID == "" {
+		return errors.New("fleetdb client id not defined")
 	}
 
-	if v.GetString("fleetdb.oidc.client.secret") != "" {
-		cfg.FleetDBAPIOptions.OidcClientSecret = v.GetString("fleetdb.oidc.client.secret")
+	if v.GetString("fleetdb.client.secret") != "" {
+		cfg.FleetDBOpts.ClientSecret = v.GetString("fleetdb.client.secret")
 	}
 
-	if cfg.FleetDBAPIOptions.OidcClientSecret == "" {
-		return errors.New("fleetdb oidc.client.secret not defined")
+	if cfg.FleetDBOpts.ClientSecret == "" {
+		return errors.New("fleetdb client secret not defined")
 	}
 
-	if v.GetString("fleetdb.oidc.client.id") != "" {
-		cfg.FleetDBAPIOptions.OidcClientID = v.GetString("fleetdb.oidc.client.id")
+	if v.GetString("fleetdb.client.scopes") != "" {
+		cfg.FleetDBOpts.ClientScopes = v.GetStringSlice("fleetdb.client.scopes")
 	}
 
-	if cfg.FleetDBAPIOptions.OidcClientID == "" {
-		return errors.New("fleetdb oidc.client.id not defined")
-	}
-
-	if v.GetString("fleetdb.oidc.client.scopes") != "" {
-		cfg.FleetDBAPIOptions.OidcClientScopes = v.GetStringSlice("fleetdb.oidc.client.scopes")
-	}
-
-	if len(cfg.FleetDBAPIOptions.OidcClientScopes) == 0 {
-		return errors.New("fleetdb oidc.client.scopes not defined")
+	if len(cfg.FleetDBOpts.ClientScopes) == 0 {
+		return errors.New("fleetdb client scopes not defined")
 	}
 
 	return nil
