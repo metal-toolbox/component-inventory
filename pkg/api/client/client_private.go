@@ -19,12 +19,12 @@ type httpRequestDoer interface {
 }
 
 // Option allows setting custom parameters during construction
-type Option func(*componentInventoryClient) error
+type Option func(*cisClient) error
 
 // WithHTTPClient allows overriding the default Doer, which is
 // automatically created using http.Client. This is useful for tests.
 func WithHTTPClient(doer httpRequestDoer) Option {
-	return func(c *componentInventoryClient) error {
+	return func(c *cisClient) error {
 		c.client = doer
 		return nil
 	}
@@ -32,13 +32,13 @@ func WithHTTPClient(doer httpRequestDoer) Option {
 
 // WithAuthToken sets the client auth token.
 func WithAuthToken(authToken string) Option {
-	return func(c *componentInventoryClient) error {
+	return func(c *cisClient) error {
 		c.authToken = authToken
 		return nil
 	}
 }
 
-func (c *componentInventoryClient) get(ctx context.Context, path string) ([]byte, error) {
+func (c *cisClient) get(ctx context.Context, path string) ([]byte, error) {
 	requestURL, err := url.Parse(fmt.Sprintf("%s%s", c.serverAddress, path))
 	if err != nil {
 		return nil, errors.Wrap(err, "parsing URL")
@@ -52,7 +52,7 @@ func (c *componentInventoryClient) get(ctx context.Context, path string) ([]byte
 	return c.do(req)
 }
 
-func (c *componentInventoryClient) post(ctx context.Context, path string, body []byte) ([]byte, error) {
+func (c *cisClient) post(ctx context.Context, path string, body []byte) ([]byte, error) {
 	requestURL, err := url.Parse(fmt.Sprintf("%s%s", c.serverAddress, path))
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse URL path %v: %v", path, err)
@@ -66,7 +66,7 @@ func (c *componentInventoryClient) post(ctx context.Context, path string, body [
 	return c.do(req)
 }
 
-func (c *componentInventoryClient) do(req *http.Request) ([]byte, error) {
+func (c *cisClient) do(req *http.Request) ([]byte, error) {
 	req.Header.Set("Content-Type", "application/json")
 
 	if c.authToken != "" {

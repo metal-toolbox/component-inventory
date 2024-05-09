@@ -130,8 +130,13 @@ func ComposeHTTPServer(theApp *app.App) *http.Server {
 				return
 			}
 
-			// XXX: hardcoded inband inventory!
-			existing, _, err := theApp.FleetDB.GetServerInventory(ctx, serverID, true)
+			getInband := true
+			qVal, set := ctx.GetQuery("mode")
+			if set && qVal == constants.OutOfBandMode {
+				getInband = false
+			}
+
+			existing, _, err := theApp.FleetDB.GetServerInventory(ctx, serverID, getInband)
 			if err != nil {
 				ctx.JSON(http.StatusInternalServerError, map[string]any{
 					"message": "components unavailable",
@@ -144,14 +149,9 @@ func ComposeHTTPServer(theApp *app.App) *http.Server {
 		})
 
 	// add an API to ingest inventory data
-	g.POST(constants.InbandInventoryEndpoint+"/:server",
+	g.POST(constants.InventoryEndpoint+"/:server",
 		composeAuthHandler(updateScopes("server:component")),
-		composeInventoryHandler(theApp, true),
-	)
-
-	g.POST(constants.OutofbandInventoryEndpoint+"/:server",
-		composeAuthHandler(updateScopes("server:component")),
-		composeInventoryHandler(theApp, false),
+		composeInventoryHandler(theApp),
 	)
 
 	return &http.Server{
@@ -199,7 +199,7 @@ func reject(ctx *gin.Context, code int, msg, err string) {
 	})
 }
 
-func composeInventoryHandler(theApp *app.App, inband bool) gin.HandlerFunc {
+func composeInventoryHandler(theApp *app.App) gin.HandlerFunc {
 	logger := theApp.Log
 	fdb := theApp.FleetDB
 	return func(ctx *gin.Context) {
@@ -212,6 +212,17 @@ func composeInventoryHandler(theApp *app.App, inband bool) gin.HandlerFunc {
 			reject(ctx, http.StatusBadRequest, "invalid server id", err.Error())
 			return
 		}
+
+		inband := true
+		qVal, set := ctx.GetQuery("mode")
+		if set && qVal == constants.OutOfBandMode {
+			inband = false
+		}
+
+		logger.With(
+			zap.String("server.id", serverID.String()),
+			zap.Bool("inband", inband),
+		).Debug("processing inventory")
 
 		var dev types.InventoryDevice
 		if err = ctx.BindJSON(&dev); err != nil {
@@ -230,13 +241,13 @@ func composeInventoryHandler(theApp *app.App, inband bool) gin.HandlerFunc {
 
 		existing, _, err := fdb.GetServerInventory(ctx, serverID, inband)
 		if err != nil {
-			// XXX: need to distinguish between failures to reach FleetDB and failures to find the server
-			reject(ctx, http.StatusBadRequest, "server not exisit", err.Error())
+			logger.With(zap.Error(err)).Warn("server lookup")
+			reject(ctx, http.StatusBadRequest, "unable to retrieve server", err.Error())
 			return
 		}
 
 		latest := iconv.ToRivetsServer(existing.Name, existing.Facility, dev.Inv, dev.BiosCfg)
-		// sanity check the latest
+		// sanity check the latest to what exists in FleetDB
 		compareComponents(existing, latest, logger)
 
 		_, err = fdb.SetServerInventory(ctx, serverID, latest, inband)

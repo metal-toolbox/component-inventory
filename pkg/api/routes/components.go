@@ -7,36 +7,35 @@ import (
 
 // compareComponents compares components between two rivets.Server.
 // It logs differences and return false if there are differences.
-// The return value is used for testing only.
-func compareComponents(fleetServer, alloyServer *rivets.Server, log *zap.Logger) bool {
-	match := true
-	alloyComponentsMap := make(map[string][]*rivets.Component)
-	for _, component := range alloyServer.Components {
-		slug := component.Name
-		if _, ok := alloyComponentsMap[slug]; !ok {
-			alloyComponentsMap[slug] = make([]*rivets.Component, 0)
-		}
-		alloyComponentsMap[slug] = append(alloyComponentsMap[slug], component)
-	}
-
-	for _, fleetComponent := range fleetServer.Components {
-		slug := fleetComponent.Name
-		_, ok := alloyComponentsMap[slug]
-		if !ok {
-			match = false
-			// no slug in alloy list, fleet component not in alloy list
-			fields := []zap.Field{
-				zap.String("device.id", fleetServer.ID),
-				zap.String("component", slug),
-			}
-			log.Warn("fleetdb component not listed in alloy", fields...)
-			continue
-		}
-
+func compareComponents(fleetServer, alloyServer *rivets.Server, log *zap.Logger) {
+	alloyMap := componentsToMap(alloyServer.Components)
+	fleetMap := componentsToMap(fleetServer.Components)
+	log.Debug("enumerating incoming")
+	for k, v := range alloyMap {
 		log.With(
-			zap.String("device.id", fleetServer.ID),
-			zap.String("component", slug),
-		).Info("placeholder for server component firmware check")
+			zap.String("component.name", k),
+			zap.Int("component.count", len(v)),
+		).Debug("incoming component")
 	}
-	return match
+	log.Debug("enumerating existing")
+	for k, v := range fleetMap {
+		log.With(
+			zap.String("component.name", k),
+			zap.Int("component.count", len(v)),
+		).Debug("existing component")
+	}
+}
+
+type componentMap map[string][]*rivets.Component
+
+func componentsToMap(cs []*rivets.Component) componentMap {
+	theMap := make(map[string][]*rivets.Component)
+	for _, c := range cs {
+		name := c.Name
+		// cSlice can be nil. Appending to nil is OK.
+		cSlice := theMap[name]
+		cSlice = append(cSlice, c)
+		theMap[name] = cSlice
+	}
+	return theMap
 }
