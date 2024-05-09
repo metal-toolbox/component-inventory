@@ -5,19 +5,18 @@ import (
 )
 
 type Configuration struct {
-	ListenAddress     string              `mapstructure:"listen_address"`
-	DeveloperMode     bool                `mapstructure:"developer_mode"`
-	JWTAuth           []ginjwt.AuthConfig `mapstructure:"ginjwt_auth"`
-	FleetDBAPIOptions FleetDBAPIOptions   `mapstructure:"fleetdb"`
+	ListenAddress string              `mapstructure:"listen_address"`
+	DeveloperMode bool                `mapstructure:"developer_mode"`
+	JWTAuth       []ginjwt.AuthConfig `mapstructure:"ginjwt_auth"`
+	FleetDBOpts   FleetDBAPIOptions   `mapstructure:"fleetdb"`
 }
 
 // https://github.com/metal-toolbox/fleetdb
 type FleetDBAPIOptions struct {
-	Endpoint             string   `mapstructure:"endpoint"`
-	OidcIssuerEndpoint   string   `mapstructure:"oidc_issuer_endpoint"`
-	OidcAudienceEndpoint string   `mapstructure:"oidc_audience_endpoint"`
-	OidcClientSecret     string   `mapstructure:"oidc_client_secret"`
-	OidcClientID         string   `mapstructure:"oidc_client_id"`
-	OidcClientScopes     []string `mapstructure:"oidc_client_scopes"`
-	DisableOAuth         bool     `mapstructure:"disable_oauth"`
+	Endpoint         string   `mapstructure:"endpoint"`
+	DisableOAuth     bool     `mapstructure:"disable_oauth"`
+	AudienceEndpoint string   `mapstructure:"audience_endpoint"`
+	ClientID         string   `mapstructure:"client_id"`
+	ClientSecret     string   `mapstructure:"client_secret"`
+	ClientScopes     []string `mapstructure:"client_scopes"`
 }

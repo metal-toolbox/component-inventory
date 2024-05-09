@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/equinix-labs/otel-init-go/otelinit"
+	fleetdb "github.com/metal-toolbox/fleetdb/pkg/api/v1"
 	"go.uber.org/zap"
 
 	rootCmd "github.com/metal-toolbox/component-inventory/cmd"
@@ -19,6 +20,13 @@ import (
 )
 
 var shutdownTimeout = 10 * time.Second
+
+func getFleetDBClient(cfg *app.Configuration) (*fleetdb.Client, error) {
+	if cfg.FleetDBOpts.DisableOAuth {
+		return fleetdb.NewClient(cfg.FleetDBOpts.Endpoint, nil)
+	}
+	return nil, errors.New("OIDC integration not implemented")
+}
 
 // install server command
 var serverCmd = &cobra.Command{
@@ -34,13 +42,15 @@ var serverCmd = &cobra.Command{
 		//nolint:errcheck
 		defer logger.Sync()
 
-		// XXX: Read NATS and or FleetDB Config
-
-		// XXX: add NATS client
-		// XXX: add FleetDB client
+		fdb, err := getFleetDBClient(cfg)
+		if err != nil {
+			logger.With(
+				zap.Error(err),
+			).Fatal("creating fleetdb client")
+		}
 
 		ctx, appCancel := context.WithCancel(c.Context())
-		app := app.NewApp(ctx, cfg, logger)
+		app := app.NewApp(ctx, cfg, logger, fdb)
 
 		metrics.ListenAndServe()
 

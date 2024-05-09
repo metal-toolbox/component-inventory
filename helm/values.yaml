@@ -9,7 +9,7 @@ app:
   serviceName: inventory-api
   configPath: /etc/cis
   livenessURI: /_health/liveness
-  containerPort: 7500
+  containerPort: 8020
 
 fleetdb:
   env:

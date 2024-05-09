@@ -1,7 +1,6 @@
 package routes
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"time"
@@ -10,11 +9,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/metal-toolbox/alloy/types"
 	"github.com/metal-toolbox/component-inventory/internal/app"
-	internalfleetdb "github.com/metal-toolbox/component-inventory/internal/fleetdb"
+	iconv "github.com/metal-toolbox/component-inventory/internal/inventoryconverter"
 	"github.com/metal-toolbox/component-inventory/internal/metrics"
 	"github.com/metal-toolbox/component-inventory/internal/version"
 	"github.com/metal-toolbox/component-inventory/pkg/api/constants"
-	rivets "github.com/metal-toolbox/rivets/types"
 	"go.hollow.sh/toolbox/ginauth"
 	"go.hollow.sh/toolbox/ginjwt"
 	"go.uber.org/zap"
@@ -132,16 +130,8 @@ func ComposeHTTPServer(theApp *app.App) *http.Server {
 				return
 			}
 
-			client, err := internalfleetdb.NewFleetDBClient(ctx, theApp.Cfg)
-			if err != nil {
-				ctx.JSON(http.StatusInternalServerError, map[string]any{
-					"message": "failed to connect to fleetdb",
-					"error":   err.Error(),
-				})
-				return
-			}
-
-			comps, err := fetchServerComponents(client, serverID, theApp.Log)
+			// XXX: hardcoded inband inventory!
+			existing, _, err := theApp.FleetDB.GetServerInventory(ctx, serverID, true)
 			if err != nil {
 				ctx.JSON(http.StatusInternalServerError, map[string]any{
 					"message": "components unavailable",
@@ -149,18 +139,19 @@ func ComposeHTTPServer(theApp *app.App) *http.Server {
 				})
 				return
 			}
-			ctx.JSON(http.StatusOK, comps)
+			// XXX: parse out the components and present them nicely
+			ctx.JSON(http.StatusOK, existing.Components)
 		})
 
 	// add an API to ingest inventory data
 	g.POST(constants.InbandInventoryEndpoint+"/:server",
 		composeAuthHandler(updateScopes("server:component")),
-		composeInventoryHandler(theApp, processInband, true),
+		composeInventoryHandler(theApp, true),
 	)
 
 	g.POST(constants.OutofbandInventoryEndpoint+"/:server",
 		composeAuthHandler(updateScopes("server:component")),
-		composeInventoryHandler(theApp, processOutofband, false),
+		composeInventoryHandler(theApp, false),
 	)
 
 	return &http.Server{
@@ -201,8 +192,6 @@ func wrapAPICall(fn apiHandler) gin.HandlerFunc {
 	}
 }
 
-type inventoryHandler func(context.Context, internalfleetdb.Client, *rivets.Server, *types.InventoryDevice, *zap.Logger) error
-
 func reject(ctx *gin.Context, code int, msg, err string) {
 	ctx.JSON(code, map[string]any{
 		"message": msg,
@@ -210,48 +199,51 @@ func reject(ctx *gin.Context, code int, msg, err string) {
 	})
 }
 
-func composeInventoryHandler(theApp *app.App, fn inventoryHandler, inband bool) gin.HandlerFunc {
+func composeInventoryHandler(theApp *app.App, inband bool) gin.HandlerFunc {
+	logger := theApp.Log
+	fdb := theApp.FleetDB
 	return func(ctx *gin.Context) {
 		serverID, err := uuid.Parse(ctx.Param("server"))
 		if err != nil {
+			logger.With(
+				zap.Error(err),
+				zap.String("server_param", ctx.Param("server")),
+			).Warn("bad server id")
 			reject(ctx, http.StatusBadRequest, "invalid server id", err.Error())
 			return
 		}
 
 		var dev types.InventoryDevice
 		if err = ctx.BindJSON(&dev); err != nil {
+			logger.With(
+				zap.Error(err),
+			).Warn("bad server payload")
 			reject(ctx, http.StatusBadRequest, "invalid server inventory", err.Error())
 			return
 		}
 
 		if dev.Inv == nil {
+			logger.Warn("empty inventory")
 			reject(ctx, http.StatusBadRequest, "empty inventory", "")
 			return
 		}
 
-		fleetDBClient, err := internalfleetdb.NewFleetDBClient(ctx, theApp.Cfg)
+		existing, _, err := fdb.GetServerInventory(ctx, serverID, inband)
 		if err != nil {
-			ctx.JSON(http.StatusInternalServerError, map[string]any{
-				"message": "failed to connect to fleetdb",
-				"error":   err.Error(),
-			})
-			return
-		}
-
-		// Will move it into processInband/processOutband
-		server, _, err := fleetDBClient.GetServerInventory(ctx, serverID, inband)
-		if err != nil {
+			// XXX: need to distinguish between failures to reach FleetDB and failures to find the server
 			reject(ctx, http.StatusBadRequest, "server not exisit", err.Error())
 			return
 		}
 
-		if err := fn(
-			ctx,
-			fleetDBClient,
-			server,
-			&dev,
-			theApp.Log,
-		); err != nil {
+		latest := iconv.ToRivetsServer(existing.Name, existing.Facility, dev.Inv, dev.BiosCfg)
+		// sanity check the latest
+		compareComponents(existing, latest, logger)
+
+		_, err = fdb.SetServerInventory(ctx, serverID, latest, inband)
+		if err != nil {
+			logger.With(
+				zap.Error(err),
+			).Warn("server update to fleet db")
 			reject(ctx, http.StatusInternalServerError, "unable to process inventory", err.Error())
 			return
 		}
