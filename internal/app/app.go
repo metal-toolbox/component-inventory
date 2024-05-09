@@ -142,7 +142,15 @@ func envVarOverrides(v *viper.Viper, cfg *Configuration) error {
 	}
 
 	if cfg.FleetDBOpts.AudienceEndpoint == "" {
-		return errors.New("fleetdb client secret not defined")
+		return errors.New("fleetdb OIDC audience endpoint not defined")
+	}
+
+	if v.GetString("fleetdb.issuer.endpoint") != "" {
+		cfg.FleetDBOpts.IssuerEndpoint = v.GetString("fleetdb.issuer.endpoint")
+	}
+
+	if cfg.FleetDBOpts.IssuerEndpoint == "" {
+		return errors.New("fleetdb OIDC issuer endpoint not defined")
 	}
 
 	if v.GetString("fleetdb.client.id") != "" {
@@ -150,7 +158,7 @@ func envVarOverrides(v *viper.Viper, cfg *Configuration) error {
 	}
 
 	if cfg.FleetDBOpts.ClientID == "" {
-		return errors.New("fleetdb client id not defined")
+		return errors.New("fleetdb OIDC client id not defined")
 	}
 
 	if v.GetString("fleetdb.client.secret") != "" {
@@ -158,7 +166,7 @@ func envVarOverrides(v *viper.Viper, cfg *Configuration) error {
 	}
 
 	if cfg.FleetDBOpts.ClientSecret == "" {
-		return errors.New("fleetdb client secret not defined")
+		return errors.New("fleetdb OIDC client secret not defined")
 	}
 
 	if v.GetString("fleetdb.client.scopes") != "" {
@@ -166,7 +174,7 @@ func envVarOverrides(v *viper.Viper, cfg *Configuration) error {
 	}
 
 	if len(cfg.FleetDBOpts.ClientScopes) == 0 {
-		return errors.New("fleetdb client scopes not defined")
+		return errors.New("fleetdb OIDC client scopes not defined")
 	}
 
 	return nil
