@@ -16,6 +16,7 @@ type FleetDBAPIOptions struct {
 	Endpoint         string   `mapstructure:"endpoint"`
 	DisableOAuth     bool     `mapstructure:"disable_oauth"`
 	AudienceEndpoint string   `mapstructure:"audience_endpoint"`
+	IssuerEndpoint   string   `mapstructure:"issuer_endpoint"`
 	ClientID         string   `mapstructure:"client_id"`
 	ClientSecret     string   `mapstructure:"client_secret"`
 	ClientScopes     []string `mapstructure:"client_scopes"`

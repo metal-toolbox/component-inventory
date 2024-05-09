@@ -1,6 +1,6 @@
 ---
 image:
-  repo: "localhost:5001/component-inventory"
+  repo: "localhost:5001"
   tag: latest
   pullPolicy: Always
 
@@ -15,3 +15,8 @@ fleetdb:
   env:
     endpoint: http://fleetdb:8000
     disable_oauth: true
+    audience_endpoint: "placeholder"
+    issuer_endpoint: "placeholder"
+    client_id: "placeholder"
+    client_scopes:
+      - "placeholder"
