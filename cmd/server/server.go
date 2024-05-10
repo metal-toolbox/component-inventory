@@ -5,11 +5,17 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"net/url"
 	"time"
 
+	"github.com/coreos/go-oidc"
 	"github.com/equinix-labs/otel-init-go/otelinit"
+	"github.com/hashicorp/go-retryablehttp"
 	fleetdb "github.com/metal-toolbox/fleetdb/pkg/api/v1"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.uber.org/zap"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/clientcredentials"
 
 	rootCmd "github.com/metal-toolbox/component-inventory/cmd"
 	"github.com/metal-toolbox/component-inventory/internal/app"
@@ -19,13 +25,61 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var shutdownTimeout = 10 * time.Second
+const (
+	dialTimeout     = 30 * time.Second
+	shutdownTimeout = 10 * time.Second
+)
 
 func getFleetDBClient(cfg *app.Configuration) (*fleetdb.Client, error) {
 	if cfg.FleetDBOpts.DisableOAuth {
 		return fleetdb.NewClient(cfg.FleetDBOpts.Endpoint, nil)
 	}
-	return nil, errors.New("OIDC integration not implemented")
+
+	ctx := context.Background()
+
+	// init retryable http client
+	retryableClient := retryablehttp.NewClient()
+
+	// set retryable HTTP client to be the otel http client to collect telemetry
+	retryableClient.HTTPClient = otelhttp.DefaultClient
+
+	// setup oidc provider
+	provider, err := oidc.NewProvider(ctx, cfg.FleetDBOpts.IssuerEndpoint)
+	if err != nil {
+		return nil, err
+	}
+
+	clientID := "component-inventory"
+
+	if cfg.FleetDBOpts.ClientID != "" {
+		clientID = cfg.FleetDBOpts.ClientID
+	}
+
+	// setup oauth configuration
+	oauthConfig := clientcredentials.Config{
+		ClientID:       clientID,
+		ClientSecret:   cfg.FleetDBOpts.ClientSecret,
+		TokenURL:       provider.Endpoint().TokenURL,
+		Scopes:         cfg.FleetDBOpts.ClientScopes,
+		EndpointParams: url.Values{"audience": []string{cfg.FleetDBOpts.AudienceEndpoint}},
+		// with this the oauth client spends less time identifying the client grant mechanism.
+		AuthStyle: oauth2.AuthStyleInParams,
+	}
+
+	// wrap OAuth transport, cookie jar in the retryable client
+	oAuthclient := oauthConfig.Client(ctx)
+
+	retryableClient.HTTPClient.Transport = oAuthclient.Transport
+	retryableClient.HTTPClient.Jar = oAuthclient.Jar
+
+	httpClient := retryableClient.StandardClient()
+	httpClient.Timeout = dialTimeout
+
+	return fleetdb.NewClientWithToken(
+		cfg.FleetDBOpts.ClientSecret,
+		cfg.FleetDBOpts.Endpoint,
+		httpClient,
+	)
 }
 
 // install server command
