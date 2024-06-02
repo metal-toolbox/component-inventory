@@ -10,7 +10,7 @@ require (
 	github.com/equinix-labs/otel-init-go v0.0.9
 	github.com/gin-gonic/gin v1.10.0
 	github.com/google/uuid v1.6.0
-	github.com/hashicorp/go-retryablehttp v0.7.6
+	github.com/hashicorp/go-retryablehttp v0.7.7
 	github.com/metal-toolbox/alloy v0.3.3-0.20240415055734-d09250fed38a
 	github.com/metal-toolbox/fleetdb v0.18.0
 	github.com/metal-toolbox/rivets v1.0.4
