@@ -1,7 +1,7 @@
 FROM golang:1.22.2-alpine3.18 AS build
 
 ARG APP_NAME
-FROM alpine:3.19.1
+FROM alpine:3.20.1
 ARG APP_NAME
 ENV APP_NAME=${APP_NAME}
 
