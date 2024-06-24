@@ -22,7 +22,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o "/${APP_NAME}" \
 -X ${LDFLAG_LOCATION}.AppVersion=${VERSION} \
 -X ${LDFLAG_LOCATION}.BuildDate=${BUILD_DATE}"
 
-FROM alpine:3.19.1
+FROM alpine:3.20.1
 ARG APP_NAME
 ENV APP_NAME=${APP_NAME}
 
